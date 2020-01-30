@@ -1,0 +1,231 @@
+// Graticule Mathematical Arithmetic
+// Fundamental numerical utilities, range mapping, and modular arithmetic.
+
+@use "sass:math";
+@use "sass:meta";
+@use "constants" as c;
+
+/// Strips the CSS unit from a numerical value.
+/// @param {Number} $number - Number with or without unit
+/// @return {Number} Pure unitless scalar
+@function strip-unit($number) {
+  @if meta.type-of($number) == "number" and not math.is-unitless($number) {
+    @return math.div($number, ($number * 0 + 1));
+  }
+  @return $number;
+}
+
+/// Returns the absolute value of a scalar.
+/// @param {Number} $x - Real number
+/// @return {Number} Absolute value
+@function abs($x) {
+  $v: strip-unit($x);
+  @return if($v < 0, -$v, $v);
+}
+
+/// Returns the signum of a scalar (-1, 0, or 1).
+/// @param {Number} $x - Real number
+/// @return {Number} Sign of x
+@function sign($x) {
+  $v: strip-unit($x);
+  @if $v > 0 { @return 1; }
+  @if $v < 0 { @return -1; }
+  @return 0;
+}
+
+/// Clamps a scalar value between inclusive lower and upper bounds.
+/// @param {Number} $val - Target value
+/// @param {Number} $min - Minimum boundary
+/// @param {Number} $max - Maximum boundary
+/// @return {Number} Clamped scalar
+@function clamp($val, $min, $max) {
+  $v: strip-unit($val);
+  $mi: strip-unit($min);
+  $ma: strip-unit($max);
+  @if $v < $mi { @return $mi; }
+  @if $v > $ma { @return $ma; }
+  @return $v;
+}
+
+/// Linear interpolation between two real endpoints.
+/// @param {Number} $a - Starting value
+/// @param {Number} $b - Ending value
+/// @param {Number} $t - Interpolation parameter [0, 1]
+/// @return {Number} Interpolated value
+@function lerp($a, $b, $t) {
+  $va: strip-unit($a);
+  $vb: strip-unit($b);
+  $vt: strip-unit($t);
+  @return $va + ($vb - $va) * $vt;
+}
+
+/// Computes the normalized parametric position of a value within [a, b].
+/// @param {Number} $a - Range lower bound
+/// @param {Number} $b - Range upper bound
+/// @param {Number} $val - Sampled value
+/// @return {Number} Parametric t value
+@function inverse-lerp($a, $b, $val) {
+  $va: strip-unit($a);
+  $vb: strip-unit($b);
+  $v: strip-unit($val);
+  $span: $vb - $va;
+  @if abs($span) < c.$EPSILON {
+    @return 0;
+  }
+  @return math.div($v - $va, $span);
+}
+
+/// Maps a scalar from an input interval to an output target interval.
+/// @param {Number} $val - Input scalar
+/// @param {Number} $in-min - Source lower bound
+/// @param {Number} $in-max - Source upper bound
+/// @param {Number} $out-min - Destination lower bound
+/// @param {Number} $out-max - Destination upper bound
+/// @return {Number} Remapped scalar
+@function map-range($val, $in-min, $in-max, $out-min, $out-max) {
+  $t: inverse-lerp($in-min, $in-max, $val);
+  @return lerp($out-min, $out-max, $t);
+}
+
+/// Mathematical modulo operator ensuring non-negative residue for negative dividends.
+/// @param {Number} $a - Dividend
+/// @param {Number} $b - Divisor
+/// @return {Number} Non-negative modulus
+@function mod($a, $b) {
+  $va: strip-unit($a);
+  $vb: strip-unit($b);
+  @if abs($vb) < c.$EPSILON {
+    @return 0;
+  }
+  $r: $va % $vb;
+  @if $r < 0 {
+    $r: $r + abs($vb);
+  }
+  @return $r;
+}
+
+/// Returns the fractional portion of a real number.
+/// @param {Number} $x - Real number
+/// @return {Number} Fractional part in [0, 1)
+@function frac($x) {
+  $v: strip-unit($x);
+  @return mod($v, 1);
+}
+
+/// Ken Perlin smoothstep cubic Hermite interpolation.
+/// @param {Number} $edge0 - Lower threshold
+/// @param {Number} $edge1 - Upper threshold
+/// @param {Number} $x - Input variable
+/// @return {Number} Smoothly interpolated value in [0, 1]
+@function smoothstep($edge0, $edge1, $x) {
+  $t: clamp(inverse-lerp($edge0, $edge1, $x), 0, 1);
+  @return $t * $t * (3 - 2 * $t);
+}
+
+/// Quintic smootherstep polynomial (6t^5 - 15t^4 + 10t^3) with zero first and second derivatives at endpoints.
+/// @param {Number} $edge0 - Lower threshold
+/// @param {Number} $edge1 - Upper threshold
+/// @param {Number} $x - Input variable
+/// @return {Number} Smoothly interpolated value in [0, 1]
+@function smootherstep($edge0, $edge1, $x) {
+  $t: clamp(inverse-lerp($edge0, $edge1, $x), 0, 1);
+  @return $t * $t * $t * ($t * ($t * 6 - 15) + 10);
+}
+
+/// Rounds a numerical value to a specified decimal precision.
+/// @param {Number} $val - Value to round
+/// @param {Number} $decimals - Number of decimal places
+/// @return {Number} Rounded scalar
+@function round-to($val, $decimals: 4) {
+  $v: strip-unit($val);
+  $factor: 1;
+  @for $i from 1 through $decimals {
+    $factor: $factor * 10;
+  }
+  @return math.div(math.round($v * $factor), $factor);
+}
+
+/// Tests whether two real values are within a specified numerical tolerance.
+/// @param {Number} $a - First value
+/// @param {Number} $b - Second value
+/// @param {Number} $tolerance - Maximum acceptable divergence
+/// @return {Boolean} True if values match within tolerance
+@function approx-equal($a, $b, $tolerance: c.$EPSILON) {
+  @return abs(strip-unit($a) - strip-unit($b)) <= $tolerance;
+}
+
+/// Greatest common divisor via the Euclidean algorithm.
+/// @param {Number} $a - First integer
+/// @param {Number} $b - Second integer
+/// @return {Number} Greatest common divisor
+@function gcd($a, $b) {
+  $va: math.round(abs(strip-unit($a)));
+  $vb: math.round(abs(strip-unit($b)));
+  @while $vb != 0 {
+    $t: $vb;
+    $vb: $va % $vb;
+    $va: $t;
+  }
+  @return $va;
+}
+
+/// Least common multiple of two integers.
+/// @param {Number} $a - First integer
+/// @param {Number} $b - Second integer
+/// @return {Number} Least common multiple
+@function lcm($a, $b) {
+  $va: math.round(abs(strip-unit($a)));
+  $vb: math.round(abs(strip-unit($b)));
+  @if $va == 0 or $vb == 0 {
+    @return 0;
+  }
+  @return math.div($va * $vb, gcd($va, $vb));
+}
+
+/// Converts an angle from degrees to radians.
+/// @param {Number} $deg - Angle in degrees
+/// @return {Number} Angle in radians
+@function deg-to-rad($deg) {
+  @return strip-unit($deg) * c.$DEG_TO_RAD;
+}
+
+/// Converts an angle from radians to degrees.
+/// @param {Number} $rad - Angle in radians
+/// @return {Number} Angle in degrees
+@function rad-to-deg($rad) {
+  @return strip-unit($rad) * c.$RAD_TO_DEG;
+}
+
+/// Normalizes an angular value in radians to the principal interval [-pi, pi).
+/// @param {Number} $rad - Angle in radians
+/// @return {Number} Normalized angle in [-pi, pi)
+@function normalize-angle-rad($rad) {
+  $r: mod(strip-unit($rad) + c.$PI, c.$TAU);
+  @return $r - c.$PI;
+}
+
+/// Normalizes an angular value in degrees to the principal interval [-180, 180).
+/// @param {Number} $deg - Angle in degrees
+/// @return {Number} Normalized angle in [-180, 180)
+@function normalize-angle-deg($deg) {
+  $d: mod(strip-unit($deg) + 180, 360);
+  @return $d - 180;
+}
+
+/// Normalizes longitude to [-180, 180] degrees.
+/// @param {Number} $lon - Longitude in degrees
+/// @return {Number} Normalized longitude
+@function normalize-lon($lon) {
+  $l: normalize-angle-deg($lon);
+  @if $l == -180 and strip-unit($lon) > 0 {
+    @return 180;
+  }
+  @return $l;
+}
+
+/// Clamps latitude to valid geographic range [-90, 90] degrees.
+/// @param {Number} $lat - Latitude in degrees
+/// @return {Number} Clamped latitude
+@function clamp-lat($lat) {
+  @return clamp($lat, -90, 90);
+}
