@@ -1,0 +1,315 @@
+// Graticule Mathematical Transcendental Functions
+// Newton-Raphson roots, argument-reduced exponential, natural logarithm,
+// and statistical distribution integrals.
+
+@use "sass:math";
+@use "sass:list";
+@use "constants" as c;
+@use "arithmetic" as a;
+
+/// Computes the square root of a non-negative scalar using the Newton-Raphson iteration.
+/// @param {Number} $x - Non-negative radicand
+/// @return {Number} Square root
+@function sqrt($x) {
+  $v: a.strip-unit($x);
+  @if $v < 0 {
+    @error "Mathematical domain error: cannot compute square root of negative number: #{$v}";
+  }
+  @if $v == 0 {
+    @return 0;
+  }
+  @if $v == 1 {
+    @return 1;
+  }
+
+  // Initial estimate using bit-shift heuristic
+  $guess: if($v > 1, math.div($v, 2), 1);
+  @for $i from 1 through 24 {
+    $next: 0.5 * ($guess + math.div($v, $guess));
+    @if a.approx-equal($next, $guess, c.$EPSILON) {
+      @return $next;
+    }
+    $guess: $next;
+  }
+  @return $guess;
+}
+
+/// Computes the cube root of a real number.
+/// @param {Number} $x - Radicand
+/// @return {Number} Cube root
+@function cbrt($x) {
+  $v: a.strip-unit($x);
+  @if $v == 0 { @return 0; }
+  $is-neg: $v < 0;
+  $pos-v: if($is-neg, -$v, $v);
+  
+  $guess: math.div($pos-v, 3);
+  @if $guess == 0 { $guess: 0.1; }
+  @for $i from 1 through 24 {
+    $next: math.div(1, 3) * (2 * $guess + math.div($pos-v, $guess * $guess));
+    @if a.approx-equal($next, $guess, c.$EPSILON) {
+      @return if($is-neg, -$next, $next);
+    }
+    $guess: $next;
+  }
+  @return if($is-neg, -$guess, $guess);
+}
+
+/// Computes the Euclidean norm (hypotenuse) sqrt(x^2 + y^2) with scaling to prevent overflow.
+/// @param {Number} $x - First Cartesian coordinate
+/// @param {Number} $y - Second Cartesian coordinate
+/// @return {Number} Hypotenuse length
+@function hypot($x, $y) {
+  $vx: a.abs($x);
+  $vy: a.abs($y);
+  $max: if($vx > $vy, $vx, $vy);
+  $min: if($vx > $vy, $vy, $vx);
+  @if $max == 0 {
+    @return 0;
+  }
+  $ratio: math.div($min, $max);
+  @return $max * sqrt(1 + $ratio * $ratio);
+}
+
+/// Computes the natural logarithm ln(x) using argument reduction and accelerated series.
+/// @param {Number} $x - Positive real number
+/// @return {Number} Natural logarithm
+@function ln($x) {
+  $v: a.strip-unit($x);
+  @if $v <= 0 {
+    @error "Mathematical domain error: logarithm undefined for non-positive values: #{$v}";
+  }
+  @if $v == 1 {
+    @return 0;
+  }
+
+  // Argument reduction: decompose v into m * 2^k where m in [sqrt(0.5), sqrt(2)]
+  $k: 0;
+  $m: $v;
+  @while $m > 1.41421356237 {
+    $m: $m * 0.5;
+    $k: $k + 1;
+  }
+  @while $m < 0.70710678118 {
+    $m: $m * 2;
+    $k: $k - 1;
+  }
+
+  // Transform variable: y = (m - 1) / (m + 1)
+  $y: math.div($m - 1, $m + 1);
+  $y2: $y * $y;
+  $sum: 0;
+  $term: $y;
+  $denom: 1;
+
+  @for $i from 1 through 16 {
+    $sum: $sum + math.div($term, $denom);
+    $term: $term * $y2;
+    $denom: $denom + 2;
+  }
+
+  @return ($k * c.$LN2) + (2 * $sum);
+}
+
+/// Computes the base-10 logarithm log10(x).
+/// @param {Number} $x - Positive real number
+/// @return {Number} Base-10 logarithm
+@function log10($x) {
+  @return math.div(ln($x), c.$LN10);
+}
+
+/// Computes the base-2 logarithm log2(x).
+/// @param {Number} $x - Positive real number
+/// @return {Number} Base-2 logarithm
+@function log2($x) {
+  @return math.div(ln($x), c.$LN2);
+}
+
+/// Computes the natural exponential function e^x via argument reduction and Taylor expansion.
+/// @param {Number} $x - Real exponent
+/// @return {Number} e^x
+@function exp($x) {
+  $v: a.strip-unit($x);
+  @if $v == 0 {
+    @return 1;
+  }
+  // Clamp extreme limits to avoid overflow/underflow
+  @if $v > 70 {
+    @return 2.515438670919167e+30;
+  }
+  @if $v < -70 {
+    @return 0;
+  }
+
+  // Argument reduction: x = k * ln(2) + r, where k is an integer and |r| <= ln(2)/2
+  $k: math.round(math.div($v, c.$LN2));
+  $r: $v - ($k * c.$LN2);
+
+  // Taylor series expansion for e^r = 1 + r + r^2/2! + r^3/3! + ...
+  $sum: 1;
+  $term: 1;
+  @for $n from 1 through 16 {
+    $term: math.div($term * $r, $n);
+    $sum: $sum + $term;
+  }
+
+  // Multiply by 2^k
+  $multiplier: 1;
+  @if $k > 0 {
+    @for $i from 1 through $k {
+      $multiplier: $multiplier * 2;
+    }
+  } @else if $k < 0 {
+    @for $i from 1 through (-$k) {
+      $multiplier: math.div($multiplier, 2);
+    }
+  }
+
+  @return $sum * $multiplier;
+}
+
+/// Computes base raised to power exponent: base^exp.
+/// Supports both integer and real exponents using e^(exp * ln(base)).
+/// @param {Number} $base - Base value
+/// @param {Number} $exp - Exponent value
+/// @return {Number} Base raised to exponent
+@function pow($base, $exp) {
+  $b: a.strip-unit($base);
+  $e: a.strip-unit($exp);
+
+  @if $e == 0 {
+    @return 1;
+  }
+  @if $b == 0 {
+    @if $e < 0 {
+      @error "Division by zero in pow: 0 raised to negative power #{$e}";
+    }
+    @return 0;
+  }
+  @if $b == 1 {
+    @return 1;
+  }
+  @if $e == 1 {
+    @return $b;
+  }
+
+  // Integer exponent fast path
+  @if $e == math.round($e) and a.abs($e) <= 32 {
+    $res: 1;
+    $abs-e: a.abs($e);
+    $cur-base: $b;
+    @while $abs-e > 0 {
+      @if $abs-e % 2 == 1 {
+        $res: $res * $cur-base;
+      }
+      $cur-base: $cur-base * $cur-base;
+      $abs-e: math.floor(math.div($abs-e, 2));
+    }
+    @return if($e < 0, math.div(1, $res), $res);
+  }
+
+  // General real power via logarithm and exponential
+  @if $b < 0 {
+    @error "Mathematical domain error: negative base with non-integer power: #{$b}^#{$e}";
+  }
+
+  @return exp($e * ln($b));
+}
+
+/// Computes the Lanczos approximation of the Gamma function Gamma(z).
+/// @param {Number} $z - Complex/real scalar (z > 0)
+/// @return {Number} Gamma(z)
+@function gamma($z) {
+  $v: a.strip-unit($z);
+  @if $v < 0.5 {
+    // Reflection formula: Gamma(1-z) * Gamma(z) = pi / sin(pi * z)
+    // Note: requires sin, fallback to series for positive values
+    @error "Domain error: gamma implemented for positive arguments z >= 0.5";
+  }
+
+  // Lanczos g=7 coefficients
+  $p: (
+    0.99999999999980993,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.32342877765313,
+    -176.61502916214059,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.9843695780195716e-6,
+    1.5056327351493116e-7
+  );
+
+  $v: $v - 1;
+  $x: list.nth($p, 1);
+  @for $i from 2 through 9 {
+    $x: $x + math.div(list.nth($p, $i), $v + $i - 1);
+  }
+
+  $t: $v + 7.5;
+  $sqrt-2pi: 2.5066282746310005;
+  @return $sqrt-2pi * pow($t, $v + 0.5) * exp(-$t) * $x;
+}
+
+/// Gaussian error function erf(x) using Abramowitz and Stegun rational Chebyshev approximation.
+/// Maximum error is bounded by 1.5e-7.
+/// @param {Number} $x - Real number
+/// @return {Number} erf(x) in [-1, 1]
+@function erf($x) {
+  $v: a.strip-unit($x);
+  $sign: if($v < 0, -1, 1);
+  $abs-v: a.abs($v);
+
+  $p: 0.3275911;
+  $a1: 0.254829592;
+  $a2: -0.284496736;
+  $a3: 1.421413741;
+  $a4: -1.453152027;
+  $a5: 1.061405429;
+
+  $t: math.div(1, 1 + $p * $abs-v);
+  $poly: $t * ($a1 + $t * ($a2 + $t * ($a3 + $t * ($a4 + $t * $a5))));
+  $res: 1 - ($poly * exp(-($abs-v * $abs-v)));
+
+  @return $sign * $res;
+}
+
+/// Complementary error function erfc(x) = 1 - erf(x).
+/// @param {Number} $x - Real number
+/// @return {Number} erfc(x) in [0, 2]
+@function erfc($x) {
+  @return 1 - erf($x);
+}
+
+/// Evaluates the Gaussian (Normal) probability density function (PDF).
+/// @param {Number} $x - Random variable value
+/// @param {Number} $mean - Distribution mean (mu)
+/// @param {Number} $stddev - Standard deviation (sigma > 0)
+/// @return {Number} Probability density
+@function gaussian-pdf($x, $mean: 0, $stddev: 1) {
+  $vx: a.strip-unit($x);
+  $mu: a.strip-unit($mean);
+  $sigma: a.strip-unit($stddev);
+  @if $sigma <= 0 {
+    @error "Standard deviation must be strictly positive: #{$sigma}";
+  }
+  $z: math.div($vx - $mu, $sigma);
+  $coeff: math.div(1, $sigma * 2.5066282746310005);
+  @return $coeff * exp(-0.5 * $z * $z);
+}
+
+/// Evaluates the Gaussian (Normal) cumulative distribution function (CDF).
+/// @param {Number} $x - Random variable value
+/// @param {Number} $mean - Distribution mean (mu)
+/// @param {Number} $stddev - Standard deviation (sigma > 0)
+/// @return {Number} Cumulative probability in [0, 1]
+@function gaussian-cdf($x, $mean: 0, $stddev: 1) {
+  $vx: a.strip-unit($x);
+  $mu: a.strip-unit($mean);
+  $sigma: a.strip-unit($stddev);
+  @if $sigma <= 0 {
+    @error "Standard deviation must be strictly positive: #{$sigma}";
+  }
+  $z: math.div($vx - $mu, $sigma * c.$SQRT2);
+  @return 0.5 * (1 + erf($z));
+}
