@@ -20,7 +20,10 @@
 /// @return {Number} Absolute value
 @function abs($x) {
   $v: strip-unit($x);
-  @return if($v < 0, -$v, $v);
+  @if $v < 0 {
+    @return -$v;
+  }
+  @return $v;
 }
 
 /// Returns the signum of a scalar (-1, 0, or 1).
