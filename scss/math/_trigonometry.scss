@@ -1,0 +1,368 @@
+// Graticule Mathematical Trigonometry
+// High-precision trigonometric and inverse trigonometric series with
+// symmetric argument reduction to [-pi/4, pi/4].
+
+@use "sass:math";
+@use "sass:list";
+@use "constants" as c;
+@use "arithmetic" as a;
+@use "transcendental" as t;
+
+/// Evaluates sin(x) for x in [-pi/4, pi/4] via high-order Taylor series.
+/// @param {Number} $x - Radians in [-pi/4, pi/4]
+/// @return {Number} Sine value
+@function _sin-taylor($x) {
+  $x2: $x * $x;
+  $term: $x;
+  $sum: $x;
+  $sign: -1;
+
+  // 7 terms reach double-precision machine epsilon
+  $factorials: (
+    6,            // 3!
+    120,          // 5!
+    5040,         // 7!
+    362880,       // 9!
+    39916800,     // 11!
+    6227020800,   // 13!
+    1307674368000 // 15!
+  );
+
+  @for $n from 1 through 7 {
+    $term: $term * $x2;
+    $sum: $sum + $sign * math.div($term, list.nth($factorials, $n));
+    $sign: -$sign;
+  }
+
+  @return $sum;
+}
+
+/// Evaluates cos(x) for x in [-pi/4, pi/4] via high-order Taylor series.
+/// @param {Number} $x - Radians in [-pi/4, pi/4]
+/// @return {Number} Cosine value
+@function _cos-taylor($x) {
+  $x2: $x * $x;
+  $term: 1;
+  $sum: 1;
+  $sign: -1;
+
+  $factorials: (
+    2,           // 2!
+    24,          // 4!
+    720,         // 6!
+    40320,       // 8!
+    3628800,     // 10!
+    479001600,   // 12!
+    87178291200  // 14!
+  );
+
+  @for $n from 1 through 7 {
+    $term: $term * $x2;
+    $sum: $sum + $sign * math.div($term, list.nth($factorials, $n));
+    $sign: -$sign;
+  }
+
+  @return $sum;
+}
+
+/// Computes the sine of an angle in radians.
+/// @param {Number} $rad - Angle in radians
+/// @return {Number} Sine value in [-1, 1]
+@function sin($rad) {
+  $x: a.normalize-angle-rad($rad);
+
+  // Symmetry: sin(-x) = -sin(x)
+  $is-neg: false;
+  @if $x < 0 {
+    $is-neg: true;
+    $x: -$x;
+  }
+
+  // Exact cardinal values
+  @if a.approx-equal($x, 0) or a.approx-equal($x, c.$PI) {
+    @return 0;
+  }
+  @if a.approx-equal($x, c.$HALF_PI) {
+    @if $is-neg { @return -1; }
+    @return 1;
+  }
+
+  // Quadrant reduction into [0, pi/2]
+  @if $x > c.$HALF_PI {
+    $x: c.$PI - $x;
+  }
+
+  // Octant reduction into [0, pi/4]
+  $res: 0;
+  @if $x <= c.$QUARTER_PI {
+    $res: _sin-taylor($x);
+  } @else {
+    $res: _cos-taylor(c.$HALF_PI - $x);
+  }
+
+  @if $is-neg {
+    @return -$res;
+  }
+  @return $res;
+}
+
+/// Computes the cosine of an angle in radians.
+/// @param {Number} $rad - Angle in radians
+/// @return {Number} Cosine value in [-1, 1]
+@function cos($rad) {
+  $x: a.normalize-angle-rad($rad);
+  @if $x < 0 {
+    $x: -$x;
+  }
+
+  // Exact cardinal values
+  @if a.approx-equal($x, 0) {
+    @return 1;
+  }
+  @if a.approx-equal($x, c.$PI) {
+    @return -1;
+  }
+  @if a.approx-equal($x, c.$HALF_PI) {
+    @return 0;
+  }
+
+  // Quadrant reduction into [0, pi/2]
+  $sign: 1;
+  @if $x > c.$HALF_PI {
+    $x: c.$PI - $x;
+    $sign: -1;
+  }
+
+  // Octant reduction into [0, pi/4]
+  $res: 0;
+  @if $x <= c.$QUARTER_PI {
+    $res: _cos-taylor($x);
+  } @else {
+    $res: _sin-taylor(c.$HALF_PI - $x);
+  }
+
+  @return $sign * $res;
+}
+
+/// Computes the tangent of an angle in radians.
+/// @param {Number} $rad - Angle in radians
+/// @return {Number} Tangent value
+@function tan($rad) {
+  $c: cos($rad);
+  @if a.abs($c) < c.$EPSILON {
+    @error "Mathematical singularity: tangent undefined at odd multiples of pi/2";
+  }
+  @return math.div(sin($rad), $c);
+}
+
+/// Computes the secant of an angle in radians.
+/// @param {Number} $rad - Angle in radians
+/// @return {Number} Secant value
+@function sec($rad) {
+  $c: cos($rad);
+  @if a.abs($c) < c.$EPSILON {
+    @error "Mathematical singularity: secant undefined at odd multiples of pi/2";
+  }
+  @return math.div(1, $c);
+}
+
+/// Computes the cosecant of an angle in radians.
+/// @param {Number} $rad - Angle in radians
+/// @return {Number} Cosecant value
+@function csc($rad) {
+  $s: sin($rad);
+  @if a.abs($s) < c.$EPSILON {
+    @error "Mathematical singularity: cosecant undefined at multiples of pi";
+  }
+  @return math.div(1, $s);
+}
+
+/// Computes the cotangent of an angle in radians.
+/// @param {Number} $rad - Angle in radians
+/// @return {Number} Cotangent value
+@function cot($rad) {
+  $s: sin($rad);
+  @if a.abs($s) < c.$EPSILON {
+    @error "Mathematical singularity: cotangent undefined at multiples of pi";
+  }
+  @return math.div(cos($rad), $s);
+}
+
+/// Computes arctangent atan(x) using domain reduction and power series.
+/// @param {Number} $x - Real number
+/// @return {Number} Angle in radians in [-pi/2, pi/2]
+@function atan($x) {
+  $v: a.strip-unit($x);
+  @if $v == 0 {
+    @return 0;
+  }
+
+  $is-neg: false;
+  @if $v < 0 {
+    $is-neg: true;
+    $v: -$v;
+  }
+
+  // Reciprocal transform for arguments > 1: atan(v) = pi/2 - atan(1/v)
+  $invert: false;
+  @if $v > 1 {
+    $invert: true;
+    $v: math.div(1, $v);
+  }
+
+  // Half-angle argument reduction: atan(v) = 2 * atan(v / (1 + sqrt(1 + v^2)))
+  // applied when v > sqrt(2) - 1 (~0.414213562)
+  $num-halvings: 0;
+  @while $v > 0.41421356237 {
+    $v: math.div($v, 1 + t.sqrt(1 + $v * $v));
+    $num-halvings: $num-halvings + 1;
+  }
+
+  // Series expansion for small v: v - v^3/3 + v^5/5 - v^7/7 + ...
+  $v2: $v * $v;
+  $term: $v;
+  $sum: $v;
+  $sign: -1;
+  $denom: 3;
+
+  @for $i from 1 through 12 {
+    $term: $term * $v2;
+    $sum: $sum + $sign * math.div($term, $denom);
+    $sign: -$sign;
+    $denom: $denom + 2;
+  }
+
+  // Restore halvings: multiply by 2^num-halvings
+  @if $num-halvings > 0 {
+    @for $i from 1 through $num-halvings {
+      $sum: $sum * 2;
+    }
+  }
+
+  @if $invert {
+    $sum: c.$HALF_PI - $sum;
+  }
+
+  @if $is-neg {
+    @return -$sum;
+  }
+  @return $sum;
+}
+
+/// Computes the four-quadrant inverse tangent atan2(y, x).
+/// @param {Number} $y - Y coordinate
+/// @param {Number} $x - X coordinate
+/// @return {Number} Angle in radians in (-pi, pi]
+@function atan2($y, $x) {
+  $vy: a.strip-unit($y);
+  $vx: a.strip-unit($x);
+
+  @if $vx > 0 {
+    @return atan(math.div($vy, $vx));
+  }
+  @if $vx < 0 {
+    @if $vy >= 0 {
+      @return atan(math.div($vy, $vx)) + c.$PI;
+    } @else {
+      @return atan(math.div($vy, $vx)) - c.$PI;
+    }
+  }
+  // vx == 0
+  @if $vy > 0 {
+    @return c.$HALF_PI;
+  }
+  @if $vy < 0 {
+    @return -c.$HALF_PI;
+  }
+  @return 0;
+}
+
+/// Computes arcsine asin(x) for x in [-1, 1].
+/// @param {Number} $x - Argument in [-1, 1]
+/// @return {Number} Angle in radians in [-pi/2, pi/2]
+@function asin($x) {
+  $v: a.strip-unit($x);
+  @if a.abs($v) > 1.000000001 {
+    @error "Mathematical domain error: asin undefined for magnitude > 1: #{$v}";
+  }
+  $v: a.clamp($v, -1, 1);
+
+  @if $v == 1 {
+    @return c.$HALF_PI;
+  }
+  @if $v == -1 {
+    @return -c.$HALF_PI;
+  }
+  @if $v == 0 {
+    @return 0;
+  }
+
+  // asin(v) = atan(v / sqrt(1 - v^2))
+  @return atan(math.div($v, t.sqrt(1 - $v * $v)));
+}
+
+/// Computes arccosine acos(x) for x in [-1, 1].
+/// @param {Number} $x - Argument in [-1, 1]
+/// @return {Number} Angle in radians in [0, pi]
+@function acos($x) {
+  $v: a.strip-unit($x);
+  @if a.abs($v) > 1.000000001 {
+    @error "Mathematical domain error: acos undefined for magnitude > 1: #{$v}";
+  }
+  $v: a.clamp($v, -1, 1);
+
+  @if $v == 1 {
+    @return 0;
+  }
+  @if $v == -1 {
+    @return c.$PI;
+  }
+  @if $v == 0 {
+    @return c.$HALF_PI;
+  }
+
+  @return c.$HALF_PI - asin($v);
+}
+
+/// Unnormalized sinc function sinc(x) = sin(x) / x.
+/// @param {Number} $x - Radians
+/// @return {Number} sinc value
+@function sinc($x) {
+  $v: a.strip-unit($x);
+  @if a.abs($v) < c.$EPSILON {
+    @return 1;
+  }
+  @return math.div(sin($v), $v);
+}
+
+// Angular Degree Variants
+
+/// Computes the sine of an angle given in degrees.
+@function sin-deg($deg) {
+  @return sin(a.deg-to-rad($deg));
+}
+
+/// Computes the cosine of an angle given in degrees.
+@function cos-deg($deg) {
+  @return cos(a.deg-to-rad($deg));
+}
+
+/// Computes the tangent of an angle given in degrees.
+@function tan-deg($deg) {
+  @return tan(a.deg-to-rad($deg));
+}
+
+/// Computes the four-quadrant inverse tangent atan2(y, x) in degrees.
+@function atan2-deg($y, $x) {
+  @return a.rad-to-deg(atan2($y, $x));
+}
+
+/// Computes arcsine in degrees.
+@function asin-deg($x) {
+  @return a.rad-to-deg(asin($x));
+}
+
+/// Computes arccosine in degrees.
+@function acos-deg($x) {
+  @return a.rad-to-deg(acos($x));
+}
