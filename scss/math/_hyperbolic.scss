@@ -1,0 +1,146 @@
+// Graticule Mathematical Hyperbolic Functions
+// Hyperbolic and inverse hyperbolic functions, plus the Gudermannian function
+// foundational to the Mercator and conformal projection transformations.
+
+@use "sass:math";
+@use "sass:list";
+@use "constants" as c;
+@use "arithmetic" as a;
+@use "transcendental" as t;
+@use "trigonometry" as trig;
+
+/// Computes the hyperbolic sine sinh(x) = (e^x - e^(-x)) / 2.
+/// @param {Number} $x - Real number
+/// @return {Number} Hyperbolic sine
+@function sinh($x) {
+  $v: a.strip-unit($x);
+  @if a.abs($v) < c.$EPSILON {
+    @return $v;
+  }
+  // For small arguments, use Taylor series to avoid catastrophic cancellation
+  @if a.abs($v) < 0.1 {
+    $v2: $v * $v;
+    $term: $v;
+    $sum: $v;
+    $factorials: (6, 120, 5040); // 3!, 5!, 7!
+    @for $i from 1 through 3 {
+      $term: $term * $v2;
+      $sum: $sum + math.div($term, list.nth($factorials, $i));
+    }
+    @return $sum;
+  }
+  $ep: t.exp($v);
+  $en: t.exp(-$v);
+  @return 0.5 * ($ep - $en);
+}
+
+/// Computes the hyperbolic cosine cosh(x) = (e^x + e^(-x)) / 2.
+/// @param {Number} $x - Real number
+/// @return {Number} Hyperbolic cosine
+@function cosh($x) {
+  $v: a.strip-unit($x);
+  @if a.abs($v) < c.$EPSILON {
+    @return 1;
+  }
+  $ep: t.exp($v);
+  $en: t.exp(-$v);
+  @return 0.5 * ($ep + $en);
+}
+
+/// Computes the hyperbolic tangent tanh(x) = sinh(x) / cosh(x).
+/// @param {Number} $x - Real number
+/// @return {Number} Hyperbolic tangent in (-1, 1)
+@function tanh($x) {
+  $v: a.strip-unit($x);
+  @if $v > 20 { @return 1; }
+  @if $v < -20 { @return -1; }
+  $e2x: t.exp(2 * $v);
+  @return math.div($e2x - 1, $e2x + 1);
+}
+
+/// Computes the hyperbolic secant sech(x) = 1 / cosh(x).
+/// @param {Number} $x - Real number
+/// @return {Number} Hyperbolic secant
+@function sech($x) {
+  @return math.div(1, cosh($x));
+}
+
+/// Computes the hyperbolic cosecant csch(x) = 1 / sinh(x).
+/// @param {Number} $x - Non-zero real number
+/// @return {Number} Hyperbolic cosecant
+@function csch($x) {
+  $s: sinh($x);
+  @if a.abs($s) < c.$EPSILON {
+    @error "Mathematical singularity: csch undefined at 0";
+  }
+  @return math.div(1, $s);
+}
+
+/// Computes the hyperbolic cotangent coth(x) = 1 / tanh(x).
+/// @param {Number} $x - Non-zero real number
+/// @return {Number} Hyperbolic cotangent
+@function coth($x) {
+  $th: tanh($x);
+  @if a.abs($th) < c.$EPSILON {
+    @error "Mathematical singularity: coth undefined at 0";
+  }
+  @return math.div(1, $th);
+}
+
+/// Computes the inverse hyperbolic sine asinh(x) = ln(x + sqrt(x^2 + 1)).
+/// @param {Number} $x - Real number
+/// @return {Number} Inverse hyperbolic sine
+@function asinh($x) {
+  $v: a.strip-unit($x);
+  @if a.abs($v) < c.$EPSILON {
+    @return $v;
+  }
+  @return t.ln($v + t.sqrt($v * $v + 1));
+}
+
+/// Computes the inverse hyperbolic cosine acosh(x) = ln(x + sqrt(x^2 - 1)).
+/// @param {Number} $x - Real number >= 1
+/// @return {Number} Inverse hyperbolic cosine
+@function acosh($x) {
+  $v: a.strip-unit($x);
+  @if $v < 1 {
+    @error "Mathematical domain error: acosh undefined for arguments < 1: #{$v}";
+  }
+  @if $v == 1 {
+    @return 0;
+  }
+  @return t.ln($v + t.sqrt($v * $v - 1));
+}
+
+/// Computes the inverse hyperbolic tangent atanh(x) = 0.5 * ln((1 + x) / (1 - x)).
+/// @param {Number} $x - Real number in (-1, 1)
+/// @return {Number} Inverse hyperbolic tangent
+@function atanh($x) {
+  $v: a.strip-unit($x);
+  @if a.abs($v) >= 1 {
+    @error "Mathematical domain error: atanh undefined for magnitude >= 1: #{$v}";
+  }
+  @if $v == 0 {
+    @return 0;
+  }
+  @return 0.5 * t.ln(math.div(1 + $v, 1 - $v));
+}
+
+/// Gudermannian function gd(x) = 2 * atan(exp(x)) - pi/2.
+/// Directly relates circular and hyperbolic functions without imaginary numbers.
+/// @param {Number} $x - Real argument (typically isometric latitude)
+/// @return {Number} Angle in radians in (-pi/2, pi/2)
+@function gd($x) {
+  $v: a.strip-unit($x);
+  @return 2 * trig.atan(t.exp($v)) - c.$HALF_PI;
+}
+
+/// Inverse Gudermannian function inv-gd(y) = ln(tan(pi/4 + y/2)).
+/// Transforms geodetic latitude to Mercator vertical coordinate.
+/// @param {Number} $y - Latitude in radians in (-pi/2, pi/2)
+/// @return {Number} Isometric latitude
+@function inv-gd($y) {
+  $vy: a.strip-unit($y);
+  $clamped: a.clamp($vy, -c.$HALF_PI + 0.00001, c.$HALF_PI - 0.00001);
+  @return t.ln(trig.tan(c.$QUARTER_PI + 0.5 * $clamped));
+}
