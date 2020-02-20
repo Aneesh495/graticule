@@ -1,0 +1,224 @@
+// Graticule Mathematical Linear Algebra - Vectors
+// 2D and 3D vector operations, spherical-to-cartesian transformations,
+// and spherical linear interpolation (SLERP).
+
+@use "sass:math";
+@use "sass:map";
+@use "constants" as c;
+@use "arithmetic" as a;
+@use "transcendental" as t;
+@use "trigonometry" as trig;
+
+/// Constructs a 2D Euclidean vector map.
+/// @param {Number} $x - X component
+/// @param {Number} $y - Y component
+/// @return {Map} Vector (x: $x, y: $y)
+@function vec2($x: 0, $y: 0) {
+  @return (
+    "x": a.strip-unit($x),
+    "y": a.strip-unit($y)
+  );
+}
+
+/// Constructs a 3D Euclidean vector map.
+/// @param {Number} $x - X component
+/// @param {Number} $y - Y component
+/// @param {Number} $z - Z component
+/// @return {Map} Vector (x: $x, y: $y, z: $z)
+@function vec3($x: 0, $y: 0, $z: 0) {
+  @return (
+    "x": a.strip-unit($x),
+    "y": a.strip-unit($y),
+    "z": a.strip-unit($z)
+  );
+}
+
+/// Adds two vectors (2D or 3D).
+@function vec-add($v1, $v2) {
+  $x: map.get($v1, "x") + map.get($v2, "x");
+  $y: map.get($v1, "y") + map.get($v2, "y");
+  @if map.has-key($v1, "z") and map.has-key($v2, "z") {
+    $z: map.get($v1, "z") + map.get($v2, "z");
+    @return vec3($x, $y, $z);
+  }
+  @return vec2($x, $y);
+}
+
+/// Subtracts vector v2 from vector v1 (v1 - v2).
+@function vec-sub($v1, $v2) {
+  $x: map.get($v1, "x") - map.get($v2, "x");
+  $y: map.get($v1, "y") - map.get($v2, "y");
+  @if map.has-key($v1, "z") and map.has-key($v2, "z") {
+    $z: map.get($v1, "z") - map.get($v2, "z");
+    @return vec3($x, $y, $z);
+  }
+  @return vec2($x, $y);
+}
+
+/// Multiplies a vector by a scalar factor.
+@function vec-scale($v, $scalar) {
+  $s: a.strip-unit($scalar);
+  $x: map.get($v, "x") * $s;
+  $y: map.get($v, "y") * $s;
+  @if map.has-key($v, "z") {
+    $z: map.get($v, "z") * $s;
+    @return vec3($x, $y, $z);
+  }
+  @return vec2($x, $y);
+}
+
+/// Computes the dot (inner) product of two vectors.
+@function vec-dot($v1, $v2) {
+  $sum: (map.get($v1, "x") * map.get($v2, "x")) + (map.get($v1, "y") * map.get($v2, "y"));
+  @if map.has-key($v1, "z") and map.has-key($v2, "z") {
+    $sum: $sum + (map.get($v1, "z") * map.get($v2, "z"));
+  }
+  @return $sum;
+}
+
+/// Computes the 3D cross product of vectors v1 and v2.
+@function vec3-cross($v1, $v2) {
+  $x1: map.get($v1, "x"); $y1: map.get($v1, "y"); $z1: map.get($v1, "z");
+  $x2: map.get($v2, "x"); $y2: map.get($v2, "y"); $z2: map.get($v2, "z");
+  @return vec3(
+    ($y1 * $z2) - ($z1 * $y2),
+    ($z1 * $x2) - ($x1 * $z2),
+    ($x1 * $y2) - ($y1 * $x2)
+  );
+}
+
+/// Computes the squared magnitude of a vector.
+@function vec-magnitude-sq($v) {
+  @return vec-dot($v, $v);
+}
+
+/// Computes the Euclidean norm (magnitude) of a vector.
+@function vec-magnitude($v) {
+  @return t.sqrt(vec-magnitude-sq($v));
+}
+
+/// Normalizes a vector to unit length.
+@function vec-normalize($v) {
+  $mag: vec-magnitude($v);
+  @if $mag < c.$EPSILON {
+    @return $v;
+  }
+  @return vec-scale($v, math.div(1, $mag));
+}
+
+/// Computes the Euclidean distance between two vectors.
+@function vec-distance($v1, $v2) {
+  @return vec-magnitude(vec-sub($v1, $v2));
+}
+
+/// Linearly interpolates between vector v1 and v2.
+@function vec-lerp($v1, $v2, $t) {
+  $vt: a.strip-unit($t);
+  $x: a.lerp(map.get($v1, "x"), map.get($v2, "x"), $vt);
+  $y: a.lerp(map.get($v1, "y"), map.get($v2, "y"), $vt);
+  @if map.has-key($v1, "z") and map.has-key($v2, "z") {
+    $z: a.lerp(map.get($v1, "z"), map.get($v2, "z"), $vt);
+    @return vec3($x, $y, $z);
+  }
+  @return vec2($x, $y);
+}
+
+/// Computes the angle of a 2D vector relative to the positive X axis in radians.
+@function vec2-angle($v) {
+  @return trig.atan2(map.get($v, "y"), map.get($v, "x"));
+}
+
+/// Computes the angle in radians between two vectors.
+@function vec-angle-between($v1, $v2) {
+  $m1: vec-magnitude($v1);
+  $m2: vec-magnitude($v2);
+  @if $m1 < c.$EPSILON or $m2 < c.$EPSILON {
+    @return 0;
+  }
+  $cos-theta: a.clamp(math.div(vec-dot($v1, $v2), $m1 * $m2), -1, 1);
+  @return trig.acos($cos-theta);
+}
+
+/// Rotates a 2D vector by an angle in radians counter-clockwise.
+@function vec2-rotate($v, $angle-rad) {
+  $cos-a: trig.cos($angle-rad);
+  $sin-a: trig.sin($angle-rad);
+  $x: map.get($v, "x");
+  $y: map.get($v, "y");
+  @return vec2(
+    ($x * $cos-a) - ($y * $sin-a),
+    ($x * $sin-a) + ($y * $cos-a)
+  );
+}
+
+/// Converts spherical coordinates (longitude, latitude) in radians to a 3D Cartesian vector.
+/// @param {Number} $lon-rad - Longitude in radians
+/// @param {Number} $lat-rad - Latitude in radians
+/// @param {Number} $radius - Sphere radius
+/// @return {Map} 3D Cartesian vector
+@function spherical-to-cartesian($lon-rad, $lat-rad, $radius: 1) {
+  $cos-lat: trig.cos($lat-rad);
+  $sin-lat: trig.sin($lat-rad);
+  $cos-lon: trig.cos($lon-rad);
+  $sin-lon: trig.sin($lon-rad);
+
+  $x: $radius * $cos-lat * $cos-lon;
+  $y: $radius * $cos-lat * $sin-lon;
+  $z: $radius * $sin-lat;
+
+  @return vec3($x, $y, $z);
+}
+
+/// Converts a 3D Cartesian vector to spherical coordinates (longitude, latitude) in radians.
+/// @param {Map} $v - 3D Cartesian vector
+/// @return {Map} Spherical coordinate map (lon: radians, lat: radians, radius: distance)
+@function cartesian-to-spherical($v) {
+  $x: map.get($v, "x");
+  $y: map.get($v, "y");
+  $z: map.get($v, "z");
+  $rho: vec-magnitude($v);
+
+  @if $rho < c.$EPSILON {
+    @return ("lon": 0, "lat": 0, "radius": 0);
+  }
+
+  $lat: trig.asin(a.clamp(math.div($z, $rho), -1, 1));
+  $lon: trig.atan2($y, $x);
+
+  @return (
+    "lon": $lon,
+    "lat": $lat,
+    "radius": $rho
+  );
+}
+
+/// Spherical linear interpolation (SLERP) between two 3D unit vectors.
+/// Used for generating geodesic waypoints along great circles.
+/// @param {Map} $v1 - Starting unit vector
+/// @param {Map} $v2 - Ending unit vector
+/// @param {Number} $t - Interpolation parameter in [0, 1]
+/// @return {Map} Interpolated 3D unit vector
+@function vec3-slerp($v1, $v2, $t) {
+  $dot: a.clamp(vec-dot($v1, $v2), -1, 1);
+
+  // If vectors are almost identical, fall back to linear interpolation
+  @if $dot > 0.99995 {
+    $res: vec-lerp($v1, $v2, $t);
+    @return vec-normalize($res);
+  }
+
+  $theta: trig.acos($dot);
+  $sin-theta: trig.sin($theta);
+
+  @if a.abs($sin-theta) < c.$EPSILON {
+    @return $v1;
+  }
+
+  $w1: math.div(trig.sin((1 - $t) * $theta), $sin-theta);
+  $w2: math.div(trig.sin($t * $theta), $sin-theta);
+
+  $scaled1: vec-scale($v1, $w1);
+  $scaled2: vec-scale($v2, $w2);
+
+  @return vec-add($scaled1, $scaled2);
+}
