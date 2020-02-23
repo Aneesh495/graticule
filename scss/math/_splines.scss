@@ -1,0 +1,174 @@
+// Graticule Mathematical Splines and Curve Geometry
+// Cubic Bezier evaluation, de Casteljau subdivision, Catmull-Rom interpolation,
+// and arc-length numerical integration for cartographic curves.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "constants" as c;
+@use "arithmetic" as a;
+@use "transcendental" as t;
+@use "vectors" as v;
+
+/// Evaluates a 2D Quadratic Bezier curve at parameter t in [0, 1].
+/// Formula: B(t) = (1-t)^2 * P0 + 2*(1-t)*t * P1 + t^2 * P2
+@function bezier-quadratic-eval($p0, $p1, $p2, $t) {
+  $vt: a.clamp($t, 0, 1);
+  $u: 1 - $vt;
+  $u2: $u * $u;
+  $t2: $vt * $vt;
+  $ut2: 2 * $u * $vt;
+
+  $x: ($u2 * map.get($p0, "x")) + ($ut2 * map.get($p1, "x")) + ($t2 * map.get($p2, "x"));
+  $y: ($u2 * map.get($p0, "y")) + ($ut2 * map.get($p1, "y")) + ($t2 * map.get($p2, "y"));
+
+  @return v.vec2($x, $y);
+}
+
+/// Evaluates a 2D Cubic Bezier curve at parameter t in [0, 1].
+/// Formula: B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3
+@function bezier-cubic-eval($p0, $p1, $p2, $p3, $t) {
+  $vt: a.clamp($t, 0, 1);
+  $u: 1 - $vt;
+  $u2: $u * $u;
+  $u3: $u2 * $u;
+  $t2: $vt * $vt;
+  $t3: $t2 * $vt;
+
+  $c0: $u3;
+  $c1: 3 * $u2 * $vt;
+  $c2: 3 * $u * $t2;
+  $c3: $t3;
+
+  $x: ($c0 * map.get($p0, "x")) + ($c1 * map.get($p1, "x")) + ($c2 * map.get($p2, "x")) + ($c3 * map.get($p3, "x"));
+  $y: ($c0 * map.get($p0, "y")) + ($c1 * map.get($p1, "y")) + ($c2 * map.get($p2, "y")) + ($c3 * map.get($p3, "y"));
+
+  @return v.vec2($x, $y);
+}
+
+/// Evaluates the first derivative (tangent velocity vector) of a cubic Bezier curve.
+/// Formula: B'(t) = 3(1-t)^2*(P1-P0) + 6(1-t)t*(P2-P1) + 3t^2*(P3-P2)
+@function bezier-cubic-derivative($p0, $p1, $p2, $p3, $t) {
+  $vt: a.clamp($t, 0, 1);
+  $u: 1 - $vt;
+  $u2: $u * $u;
+  $t2: $vt * $vt;
+
+  $w0: 3 * $u2;
+  $w1: 6 * $u * $vt;
+  $w2: 3 * $t2;
+
+  $d01: v.vec-sub($p1, $p0);
+  $d12: v.vec-sub($p2, $p1);
+  $d23: v.vec-sub($p3, $p2);
+
+  $x: ($w0 * map.get($d01, "x")) + ($w1 * map.get($d12, "x")) + ($w2 * map.get($d23, "x"));
+  $y: ($w0 * map.get($d01, "y")) + ($w1 * map.get($d12, "y")) + ($w2 * map.get($d23, "y"));
+
+  @return v.vec2($x, $y);
+}
+
+/// Evaluates a 2D curve point using de Casteljau recursive interpolation.
+/// Handles Bezier curves of arbitrary control point degree.
+/// @param {List} $points - Ordered list of vec2 control points
+/// @param {Number} $t - Parametric parameter in [0, 1]
+/// @return {Map} Evaluated 2D point
+@function bezier-de-casteljau($points, $t) {
+  $vt: a.clamp($t, 0, 1);
+  $current: $points;
+  $len: list.length($current);
+
+  @while $len > 1 {
+    $next: ();
+    @for $i from 1 to $len {
+      $p-a: list.nth($current, $i);
+      $p-b: list.nth($current, $i + 1);
+      $interpolated: v.vec-lerp($p-a, $p-b, $vt);
+      $next: list.append($next, $interpolated);
+    }
+    $current: $next;
+    $len: list.length($current);
+  }
+
+  @return list.nth($current, 1);
+}
+
+/// Subdivides a cubic Bezier curve at parameter t into two independent cubic curves.
+/// Returns map with "left" and "right" lists of 4 control points each.
+@function bezier-subdivide($p0, $p1, $p2, $p3, $t) {
+  $vt: a.clamp($t, 0, 1);
+
+  $p01: v.vec-lerp($p0, $p1, $vt);
+  $p12: v.vec-lerp($p1, $p2, $vt);
+  $p23: v.vec-lerp($p2, $p3, $vt);
+
+  $p012: v.vec-lerp($p01, $p12, $vt);
+  $p123: v.vec-lerp($p12, $p23, $vt);
+
+  $p0123: v.vec-lerp($p012, $p123, $vt);
+
+  @return (
+    "left": ($p0, $p01, $p012, $p0123),
+    "right": ($p0123, $p123, $p23, $p3)
+  );
+}
+
+/// Approximates the arc length of a cubic Bezier curve via Simpson quadrature.
+/// @param {Map} $p0 - Start point
+/// @param {Map} $p1 - First control handle
+/// @param {Map} $p2 - Second control handle
+/// @param {Map} $p3 - End point
+/// @param {Number} $intervals - Number of Simpson integration intervals (even)
+/// @return {Number} Curve arc length
+@function bezier-arc-length($p0, $p1, $p2, $p3, $intervals: 10) {
+  $n: $intervals;
+  @if $intervals % 2 == 1 {
+    $n: $intervals + 1;
+  }
+  $h: math.div(1, $n);
+
+  $sum: 0;
+  @for $i from 0 through $n {
+    $t-val: $i * $h;
+    $deriv: bezier-cubic-derivative($p0, $p1, $p2, $p3, $t-val);
+    $speed: v.vec-magnitude($deriv);
+
+    $weight: 2;
+    @if $i == 0 or $i == $n {
+      $weight: 1;
+    } @else if $i % 2 == 1 {
+      $weight: 4;
+    }
+
+    $sum: $sum + ($weight * $speed);
+  }
+
+  @return math.div($h * $sum, 3);
+}
+
+/// Evaluates a Catmull-Rom spline passing through p1 and p2, influenced by neighbors p0 and p3.
+/// Guarantees C1 continuity through all path vertices.
+/// @param {Map} $p0 - Preceding point
+/// @param {Map} $p1 - Starting knot
+/// @param {Map} $p2 - Ending knot
+/// @param {Map} $p3 - Following point
+/// @param {Number} $t - Local parameter in [0, 1]
+/// @param {Number} $tension - Tension scalar (0.5 = standard Catmull-Rom)
+/// @return {Map} Evaluated 2D point
+@function catmull-rom-eval($p0, $p1, $p2, $p3, $t, $tension: 0.5) {
+  $vt: a.clamp($t, 0, 1);
+  $t2: $vt * $vt;
+  $t3: $t2 * $vt;
+
+  // Basis matrix terms for Catmull-Rom with configurable tension tau
+  $tau: $tension;
+  $c0: (-$tau * $t3) + (2 * $tau * $t2) - ($tau * $vt);
+  $c1: ((2 - $tau) * $t3) + (($tau - 3) * $t2) + 1;
+  $c2: (($tau - 2) * $t3) + ((3 - 2 * $tau) * $t2) + ($tau * $vt);
+  $c3: ($tau * $t3) - ($tau * $t2);
+
+  $x: ($c0 * map.get($p0, "x")) + ($c1 * map.get($p1, "x")) + ($c2 * map.get($p2, "x")) + ($c3 * map.get($p3, "x"));
+  $y: ($c0 * map.get($p0, "y")) + ($c1 * map.get($p1, "y")) + ($c2 * map.get($p2, "y")) + ($c3 * map.get($p3, "y"));
+
+  @return v.vec2($x, $y);
+}
