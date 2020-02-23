@@ -1,0 +1,208 @@
+// Graticule Mathematical Linear Algebra - Matrices
+// 3x3 and 4x4 matrix algebra, affine transformations, determinants,
+// inversions, and Rodrigues 3D rotation operators.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "constants" as c;
+@use "arithmetic" as a;
+@use "transcendental" as t;
+@use "trigonometry" as trig;
+@use "vectors" as v;
+
+/// Returns a 3x3 identity matrix as a flat list of 9 values.
+@function mat3-identity() {
+  @return (
+    1, 0, 0,
+    0, 1, 0,
+    0, 0, 1
+  );
+}
+
+/// Retrieves the element at (row, col) from a 3x3 matrix (0-indexed).
+@function mat3-get($m, $row, $col) {
+  $index: ($row * 3) + $col + 1;
+  @return list.nth($m, $index);
+}
+
+/// Multiplies two 3x3 matrices: m1 * m2.
+@function mat3-mul($m1, $m2) {
+  $res: ();
+  @for $r from 0 through 2 {
+    @for $c from 0 through 2 {
+      $sum: 0;
+      @for $k from 0 through 2 {
+        $sum: $sum + (mat3-get($m1, $r, $k) * mat3-get($m2, $k, $c));
+      }
+      $res: list.append($res, $sum);
+    }
+  }
+  @return $res;
+}
+
+/// Transforms a 2D Euclidean point using a 3x3 affine matrix (homogeneous coordinates w = 1).
+/// @param {List} $m - 3x3 affine matrix
+/// @param {Map} $p - 2D point (x, y)
+/// @return {Map} Transformed 2D point
+@function mat3-mul-vec2($m, $p) {
+  $px: map.get($p, "x");
+  $py: map.get($p, "y");
+
+  $x: (mat3-get($m, 0, 0) * $px) + (mat3-get($m, 0, 1) * $py) + mat3-get($m, 0, 2);
+  $y: (mat3-get($m, 1, 0) * $px) + (mat3-get($m, 1, 1) * $py) + mat3-get($m, 1, 2);
+  $w: (mat3-get($m, 2, 0) * $px) + (mat3-get($m, 2, 1) * $py) + mat3-get($m, 2, 2);
+
+  @if a.abs($w - 1) > c.$EPSILON and a.abs($w) > c.$EPSILON {
+    $inv-w: math.div(1, $w);
+    @return v.vec2($x * $inv-w, $y * $inv-w);
+  }
+
+  @return v.vec2($x, $y);
+}
+
+/// Multiplies a 3x3 matrix by a 3D vector.
+@function mat3-mul-vec3($m, $vec) {
+  $vx: map.get($vec, "x");
+  $vy: map.get($vec, "y");
+  $vz: map.get($vec, "z");
+
+  $x: (mat3-get($m, 0, 0) * $vx) + (mat3-get($m, 0, 1) * $vy) + (mat3-get($m, 0, 2) * $vz);
+  $y: (mat3-get($m, 1, 0) * $vx) + (mat3-get($m, 1, 1) * $vy) + (mat3-get($m, 1, 2) * $vz);
+  $z: (mat3-get($m, 2, 0) * $vx) + (mat3-get($m, 2, 1) * $vy) + (mat3-get($m, 2, 2) * $vz);
+
+  @return v.vec3($x, $y, $z);
+}
+
+/// Transposes a 3x3 matrix.
+@function mat3-transpose($m) {
+  $res: ();
+  @for $r from 0 through 2 {
+    @for $c from 0 through 2 {
+      $res: list.append($res, mat3-get($m, $c, $r));
+    }
+  }
+  @return $res;
+}
+
+/// Computes the determinant of a 3x3 matrix using Sarrus rule.
+@function mat3-determinant($m) {
+  $a: mat3-get($m, 0, 0); $b: mat3-get($m, 0, 1); $c: mat3-get($m, 0, 2);
+  $d: mat3-get($m, 1, 0); $e: mat3-get($m, 1, 1); $f: mat3-get($m, 1, 2);
+  $g: mat3-get($m, 2, 0); $h: mat3-get($m, 2, 1); $i: mat3-get($m, 2, 2);
+
+  $pos: ($a * $e * $i) + ($b * $f * $g) + ($c * $d * $h);
+  $neg: ($c * $e * $g) + ($b * $d * $i) + ($a * $f * $h);
+
+  @return $pos - $neg;
+}
+
+/// Inverts an invertible 3x3 matrix via the adjugate matrix and determinant.
+@function mat3-inverse($m) {
+  $det: mat3-determinant($m);
+  @if a.abs($det) < c.$EPSILON {
+    @error "Matrix inversion error: singular matrix with near-zero determinant: #{$det}";
+  }
+  $inv-det: math.div(1, $det);
+
+  $a: mat3-get($m, 0, 0); $b: mat3-get($m, 0, 1); $c: mat3-get($m, 0, 2);
+  $d: mat3-get($m, 1, 0); $e: mat3-get($m, 1, 1); $f: mat3-get($m, 1, 2);
+  $g: mat3-get($m, 2, 0); $h: mat3-get($m, 2, 1); $i: mat3-get($m, 2, 2);
+
+  $c00: ($e * $i) - ($f * $h);
+  $c01: -1 * (($d * $i) - ($f * $g));
+  $c02: ($d * $h) - ($e * $g);
+
+  $c10: -1 * (($b * $i) - ($c * $h));
+  $c11: ($a * $i) - ($c * $g);
+  $c12: -1 * (($a * $h) - ($b * $g));
+
+  $c20: ($b * $f) - ($c * $e);
+  $c21: -1 * (($a * $f) - ($c * $d));
+  $c22: ($a * $e) - ($b * $d);
+
+  // Adjugate is the transpose of the cofactor matrix
+  @return (
+    $c00 * $inv-det, $c10 * $inv-det, $c20 * $inv-det,
+    $c01 * $inv-det, $c11 * $inv-det, $c21 * $inv-det,
+    $c02 * $inv-det, $c12 * $inv-det, $c22 * $inv-det
+  );
+}
+
+/// Constructs a 2D translation matrix.
+@function mat3-translation($tx, $ty) {
+  $x: a.strip-unit($tx);
+  $y: a.strip-unit($ty);
+  @return (
+    1, 0, $x,
+    0, 1, $y,
+    0, 0, 1
+  );
+}
+
+/// Constructs a 2D scaling matrix.
+@function mat3-scaling($sx, $sy: $sx) {
+  $x: a.strip-unit($sx);
+  $y: a.strip-unit($sy);
+  @return (
+    $x, 0, 0,
+    0, $y, 0,
+    0, 0, 1
+  );
+}
+
+/// Constructs a 2D rotation matrix around the origin.
+/// @param {Number} $angle-rad - Counter-clockwise angle in radians
+/// @return {List} 3x3 rotation matrix
+@function mat3-rotation($angle-rad) {
+  $cos-a: trig.cos($angle-rad);
+  $sin-a: trig.sin($angle-rad);
+  @return (
+    $cos-a, -$sin-a, 0,
+    $sin-a,  $cos-a, 0,
+    0,      0,      1
+  );
+}
+
+/// Constructs a 3D rotation matrix around an arbitrary unit axis (Rodrigues formula).
+/// @param {Map} $axis - 3D unit axis vector
+/// @param {Number} $angle-rad - Rotation angle in radians
+/// @return {List} 3x3 rotation matrix
+@function mat3-rotation-3d($axis, $angle-rad) {
+  $u: v.vec-normalize($axis);
+  $ux: map.get($u, "x");
+  $uy: map.get($u, "y");
+  $uz: map.get($u, "z");
+
+  $c: trig.cos($angle-rad);
+  $s: trig.sin($angle-rad);
+  $one-minus-c: 1 - $c;
+
+  $r00: $c + ($ux * $ux * $one-minus-c);
+  $r01: ($ux * $uy * $one-minus-c) - ($uz * $s);
+  $r02: ($ux * $uz * $one-minus-c) + ($uy * $s);
+
+  $r10: ($uy * $ux * $one-minus-c) + ($uz * $s);
+  $r11: $c + ($uy * $uy * $one-minus-c);
+  $r12: ($uy * $uz * $one-minus-c) - ($ux * $s);
+
+  $r20: ($uz * $ux * $one-minus-c) - ($uy * $s);
+  $r21: ($uz * $uy * $one-minus-c) + ($ux * $s);
+  $r22: $c + ($uz * $uz * $one-minus-c);
+
+  @return (
+    $r00, $r01, $r02,
+    $r10, $r11, $r12,
+    $r20, $r21, $r22
+  );
+}
+
+/// Returns a 4x4 identity matrix as a flat list of 16 values.
+@function mat4-identity() {
+  @return (
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+  );
+}
