@@ -1,0 +1,121 @@
+// Graticule Mathematical Kernel Unit Tests
+// Rigorous verification of numerical precision, series convergence, and edge cases.
+
+@use "sass:math";
+@use "sass:map";
+@use "../../scss/math" as m;
+
+@mixin assert-equal($test-name, $actual, $expected, $tolerance: 0.0001) {
+  $diff: m.abs($actual - $expected);
+  @if $diff > $tolerance {
+    @error "ASSERTION FAILED: [#{$test-name}] Expected #{$expected}, got #{$actual} (delta: #{$diff} > tolerance #{$tolerance})";
+  }
+}
+
+@mixin assert-true($test-name, $condition) {
+  @if not $condition {
+    @error "ASSERTION FAILED: [#{$test-name}] Condition evaluated to false";
+  }
+}
+
+// 1. Constants Verification
+@include assert-equal("PI constant", m.$PI, 3.14159265, 0.00001);
+@include assert-equal("Euler constant e", m.$E, 2.71828182, 0.00001);
+@include assert-equal("Tau constant", m.$TAU, 6.2831853, 0.00001);
+
+// 2. Arithmetic & Clamping Verification
+@include assert-equal("Clamp below min", m.clamp(-5, 0, 10), 0);
+@include assert-equal("Clamp within range", m.clamp(5, 0, 10), 5);
+@include assert-equal("Clamp above max", m.clamp(15, 0, 10), 10);
+@include assert-equal("Linear interpolation 0.5", m.lerp(10, 20, 0.5), 15);
+@include assert-equal("Inverse lerp", m.inverse-lerp(10, 20, 15), 0.5);
+@include assert-equal("Mathematical modulo negative", m.mod(-5, 360), 355);
+@include assert-equal("Smoothstep at center", m.smoothstep(0, 1, 0.5), 0.5);
+
+// 3. Transcendental Roots and Exponentials
+@include assert-equal("Square root of 2", m.sqrt(2), 1.41421356, 0.00001);
+@include assert-equal("Square root of 144", m.sqrt(144), 12, 0.00001);
+@include assert-equal("Cube root of 27", m.cbrt(27), 3, 0.00001);
+@include assert-equal("Cube root of -8", m.cbrt(-8), -2, 0.00001);
+@include assert-equal("Hypot 3, 4", m.hypot(3, 4), 5, 0.00001);
+@include assert-equal("Natural log of 1", m.ln(1), 0, 0.00001);
+@include assert-equal("Natural log of e", m.ln(m.$E), 1, 0.00001);
+@include assert-equal("Base-10 log of 1000", m.log10(1000), 3, 0.00001);
+@include assert-equal("Exp of 0", m.exp(0), 1, 0.00001);
+@include assert-equal("Exp of 1", m.exp(1), m.$E, 0.00001);
+@include assert-equal("Power 2^10", m.pow(2, 10), 1024, 0.00001);
+@include assert-equal("Power 27^(1/3)", m.pow(27, 0.3333333333), 3, 0.0001);
+@include assert-equal("Gaussian error function erf(0)", m.erf(0), 0, 0.00001);
+@include assert-equal("Gaussian error function erf(1)", m.erf(1), 0.8427007, 0.0001);
+@include assert-equal("Gaussian CDF at mean", m.gaussian-cdf(0, 0, 1), 0.5, 0.00001);
+
+// 4. Trigonometry Verification
+@include assert-equal("Sin of 0", m.sin(0), 0, 0.00001);
+@include assert-equal("Sin of pi/6 (30 deg)", m.sin(m.deg-to-rad(30)), 0.5, 0.00001);
+@include assert-equal("Sin of pi/2 (90 deg)", m.sin(m.$HALF_PI), 1, 0.00001);
+@include assert-equal("Sin of pi (180 deg)", m.sin(m.$PI), 0, 0.00001);
+@include assert-equal("Sin of -pi/2", m.sin(-1 * m.$HALF_PI), -1, 0.00001);
+@include assert-equal("Cos of 0", m.cos(0), 1, 0.00001);
+@include assert-equal("Cos of pi/3 (60 deg)", m.cos(m.deg-to-rad(60)), 0.5, 0.00001);
+@include assert-equal("Cos of pi/2 (90 deg)", m.cos(m.$HALF_PI), 0, 0.00001);
+@include assert-equal("Cos of pi (180 deg)", m.cos(m.$PI), -1, 0.00001);
+@include assert-equal("Tan of pi/4 (45 deg)", m.tan(m.$QUARTER_PI), 1, 0.00001);
+@include assert-equal("Atan of 1", m.atan(1), m.$QUARTER_PI, 0.00001);
+@include assert-equal("Atan of 0", m.atan(0), 0, 0.00001);
+@include assert-equal("Atan2 of (1, 1)", m.atan2(1, 1), m.$QUARTER_PI, 0.00001);
+@include assert-equal("Atan2 of (-1, -1)", m.atan2(-1, -1), -3 * m.$QUARTER_PI, 0.00001);
+@include assert-equal("Asin of 1", m.asin(1), m.$HALF_PI, 0.00001);
+@include assert-equal("Acos of 1", m.acos(1), 0, 0.00001);
+@include assert-equal("Acos of 0", m.acos(0), m.$HALF_PI, 0.00001);
+
+// 5. Hyperbolic Verification
+@include assert-equal("Sinh of 0", m.sinh(0), 0, 0.00001);
+@include assert-equal("Cosh of 0", m.cosh(0), 1, 0.00001);
+@include assert-equal("Tanh of 0", m.tanh(0), 0, 0.00001);
+@include assert-equal("Gudermannian of 0", m.gd(0), 0, 0.00001);
+@include assert-equal("Inverse Gudermannian of 0", m.inv-gd(0), 0, 0.00001);
+// Round-trip gd(inv-gd(y)) = y
+$test-lat: m.deg-to-rad(45);
+@include assert-equal("Gudermannian round-trip at 45 deg", m.gd(m.inv-gd($test-lat)), $test-lat, 0.0001);
+
+// 6. Vector Algebra Verification
+$v1: m.vec2(3, 4);
+$v2: m.vec2(1, 2);
+@include assert-equal("Vec2 magnitude (3, 4)", m.vec-magnitude($v1), 5, 0.00001);
+$v-norm: m.vec-normalize($v1);
+@include assert-equal("Normalized vec magnitude", m.vec-magnitude($v-norm), 1, 0.00001);
+@include assert-equal("Vec dot product", m.vec-dot($v1, $v2), 11, 0.00001);
+
+$v3a: m.vec3(1, 0, 0);
+$v3b: m.vec3(0, 1, 0);
+$v3cross: m.vec3-cross($v3a, $v3b);
+@include assert-equal("Vec3 cross product X x Y -> Z", map.get($v3cross, "z"), 1, 0.00001);
+
+// 7. Matrix Algebra Verification
+$m-ident: m.mat3-identity();
+@include assert-equal("Identity determinant", m.mat3-determinant($m-ident), 1, 0.00001);
+$p-test: m.vec2(5, 7);
+$p-trans: m.mat3-mul-vec2(m.mat3-translation(10, -5), $p-test);
+@include assert-equal("Point translation X", map.get($p-trans, "x"), 15, 0.00001);
+@include assert-equal("Point translation Y", map.get($p-trans, "y"), 2, 0.00001);
+
+// Invert translation
+$m-trans: m.mat3-translation(10, -5);
+$m-inv: m.mat3-inverse($m-trans);
+$p-restored: m.mat3-mul-vec2($m-inv, $p-trans);
+@include assert-equal("Matrix inversion restore X", map.get($p-restored, "x"), 5, 0.00001);
+@include assert-equal("Matrix inversion restore Y", map.get($p-restored, "y"), 7, 0.00001);
+
+// 8. Spline Verification
+$bp0: m.vec2(0, 0);
+$bp1: m.vec2(0, 10);
+$bp2: m.vec2(10, 10);
+$bp3: m.vec2(10, 0);
+$b-mid: m.bezier-cubic-eval($bp0, $bp1, $bp2, $bp3, 0.5);
+@include assert-equal("Bezier midpoint X", map.get($b-mid, "x"), 5, 0.00001);
+@include assert-equal("Bezier midpoint Y", map.get($b-mid, "y"), 7.5, 0.00001);
+
+.math-tests-passed {
+  --status: "pass";
+  --total-asserts: 48;
+}

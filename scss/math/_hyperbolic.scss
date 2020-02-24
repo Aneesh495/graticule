@@ -141,6 +141,6 @@
 /// @return {Number} Isometric latitude
 @function inv-gd($y) {
   $vy: a.strip-unit($y);
-  $clamped: a.clamp($vy, -c.$HALF_PI + 0.00001, c.$HALF_PI - 0.00001);
+  $clamped: a.clamp($vy, -1 * c.$HALF_PI + 0.00001, c.$HALF_PI - 0.00001);
   @return t.ln(trig.tan(c.$QUARTER_PI + 0.5 * $clamped));
 }
