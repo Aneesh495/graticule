@@ -1,0 +1,217 @@
+// Graticule Geodesy and Spherical Trigonometry
+// Great-circle navigation, Haversine, WGS-84 Vincenty inverse iteration,
+// initial bearing, and great-circle waypoint generation.
+
+@use "sass:math";
+@use "sass:map";
+@use "sass:list";
+@use "../math" as m;
+
+/// Computes the great-circle angular distance in radians using the Haversine formula.
+/// Numerically stable for small distances.
+/// @param {Number} $lon1 - Starting longitude in degrees
+/// @param {Number} $lat1 - Starting latitude in degrees
+/// @param {Number} $lon2 - Ending longitude in degrees
+/// @param {Number} $lat2 - Ending latitude in degrees
+/// @return {Number} Angular distance in radians
+@function haversine-angular-distance($lon1, $lat1, $lon2, $lat2) {
+  $phi1: m.deg-to-rad($lat1);
+  $phi2: m.deg-to-rad($lat2);
+  $delta-phi: m.deg-to-rad($lat2 - $lat1);
+  $delta-lambda: m.deg-to-rad($lon2 - $lon1);
+
+  $sin-half-dphi: m.sin(0.5 * $delta-phi);
+  $sin-half-dlam: m.sin(0.5 * $delta-lambda);
+
+  $h: ($sin-half-dphi * $sin-half-dphi) + (m.cos($phi1) * m.cos($phi2) * $sin-half-dlam * $sin-half-dlam);
+  $clamped-h: m.clamp($h, 0, 1);
+
+  @return 2 * m.asin(m.sqrt($clamped-h));
+}
+
+/// Computes great-circle distance in meters between two geographic coordinates.
+/// @param {Number} $lon1 - Starting longitude in degrees
+/// @param {Number} $lat1 - Starting latitude in degrees
+/// @param {Number} $lon2 - Ending longitude in degrees
+/// @param {Number} $lat2 - Ending latitude in degrees
+/// @param {Number} $radius - Sphere radius in meters (defaults to WGS-84 mean radius)
+/// @return {Number} Geodesic surface distance in meters
+@function haversine-distance($lon1, $lat1, $lon2, $lat2, $radius: m.$EARTH_RADIUS_MEAN) {
+  $c: haversine-angular-distance($lon1, $lat1, $lon2, $lat2);
+  @return $c * $radius;
+}
+
+/// Computes the initial bearing (forward azimuth) from point 1 to point 2 in degrees.
+/// Returned angle is clockwise from True North in the interval [0, 360).
+/// @param {Number} $lon1 - Starting longitude in degrees
+/// @param {Number} $lat1 - Starting latitude in degrees
+/// @param {Number} $lon2 - Ending longitude in degrees
+/// @param {Number} $lat2 - Ending latitude in degrees
+/// @return {Number} Bearing angle in degrees in [0, 360)
+@function initial-bearing($lon1, $lat1, $lon2, $lat2) {
+  $phi1: m.deg-to-rad($lat1);
+  $phi2: m.deg-to-rad($lat2);
+  $delta-lambda: m.deg-to-rad($lon2 - $lon1);
+
+  $y: m.sin($delta-lambda) * m.cos($phi2);
+  $x: (m.cos($phi1) * m.sin($phi2)) - (m.sin($phi1) * m.cos($phi2) * m.cos($delta-lambda));
+
+  $theta: m.atan2($y, $x);
+  $deg: m.rad-to-deg($theta);
+  @return m.mod($deg + 360, 360);
+}
+
+/// Computes the destination coordinates given start point, distance, and bearing.
+/// @param {Number} $lon1 - Starting longitude in degrees
+/// @param {Number} $lat1 - Starting latitude in degrees
+/// @param {Number} $distance-meters - Travel distance in meters
+/// @param {Number} $bearing-deg - Initial azimuth in degrees clockwise from North
+/// @param {Number} $radius - Earth radius in meters
+/// @return {Map} Destination coordinate map ("lon": degrees, "lat": degrees)
+@function destination-point($lon1, $lat1, $distance-meters, $bearing-deg, $radius: m.$EARTH_RADIUS_MEAN) {
+  $delta: math.div($distance-meters, $radius);
+  $theta: m.deg-to-rad($bearing-deg);
+  $phi1: m.deg-to-rad($lat1);
+  $lambda1: m.deg-to-rad($lon1);
+
+  $sin-phi1: m.sin($phi1);
+  $cos-phi1: m.cos($phi1);
+  $sin-delta: m.sin($delta);
+  $cos-delta: m.cos($delta);
+
+  $sin-phi2: ($sin-phi1 * $cos-delta) + ($cos-phi1 * $sin-delta * m.cos($theta));
+  $phi2: m.asin(m.clamp($sin-phi2, -1, 1));
+
+  $y: m.sin($theta) * $sin-delta * $cos-phi1;
+  $x: $cos-delta - ($sin-phi1 * m.sin($phi2));
+  $lambda2: $lambda1 + m.atan2($y, $x);
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda2)),
+    "lat": m.rad-to-deg($phi2)
+  );
+}
+
+/// Generates an intermediate waypoint along a great-circle arc using spherical SLERP.
+/// @param {Number} $lon1 - Start longitude in degrees
+/// @param {Number} $lat1 - Start latitude in degrees
+/// @param {Number} $lon2 - End longitude in degrees
+/// @param {Number} $lat2 - End latitude in degrees
+/// @param {Number} $fraction - Parametric progress along arc in [0, 1]
+/// @return {Map} Intermediate coordinate map ("lon": degrees, "lat": degrees)
+@function great-circle-waypoint($lon1, $lat1, $lon2, $lat2, $fraction) {
+  $f: m.clamp($fraction, 0, 1);
+  @if $f == 0 {
+    @return ("lon": $lon1, "lat": $lat1);
+  }
+  @if $f == 1 {
+    @return ("lon": $lon2, "lat": $lat2);
+  }
+
+  $v1: m.spherical-to-cartesian(m.deg-to-rad($lon1), m.deg-to-rad($lat1));
+  $v2: m.spherical-to-cartesian(m.deg-to-rad($lon2), m.deg-to-rad($lat2));
+
+  $vi: m.vec3-slerp($v1, $v2, $f);
+  $sph: m.cartesian-to-spherical($vi);
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg(map.get($sph, "lon"))),
+    "lat": m.rad-to-deg(map.get($sph, "lat"))
+  );
+}
+
+/// Generates a dense polyline of coordinates sampled along the great circle.
+/// Essential for projecting curved flight paths smoothly onto cylindrical and conic maps.
+/// @param {Number} $lon1 - Start longitude in degrees
+/// @param {Number} $lat1 - Start latitude in degrees
+/// @param {Number} $lon2 - End longitude in degrees
+/// @param {Number} $lat2 - End latitude in degrees
+/// @param {Number} $num-segments - Number of subdivisions (defaults to 32)
+/// @return {List} Ordered list of ("lon": degrees, "lat": degrees) waypoints
+@function great-circle-path($lon1, $lat1, $lon2, $lat2, $num-segments: 32) {
+  $path: ();
+  @for $i from 0 through $num-segments {
+    $f: math.div($i, $num-segments);
+    $wp: great-circle-waypoint($lon1, $lat1, $lon2, $lat2, $f);
+    $path: list.append($path, $wp);
+  }
+  @return $path;
+}
+
+/// Computes the geodesic distance on the WGS-84 reference ellipsoid using Vincenty's inverse formula.
+/// Accurate to within 0.5 millimeters on the planetary ellipsoid.
+/// @param {Number} $lon1 - Starting longitude in degrees
+/// @param {Number} $lat1 - Starting latitude in degrees
+/// @param {Number} $lon2 - Ending longitude in degrees
+/// @param {Number} $lat2 - Ending latitude in degrees
+/// @return {Number} Ellipsoidal distance in meters
+@function vincenty-inverse-distance($lon1, $lat1, $lon2, $lat2) {
+  $a: m.$WGS84_A;
+  $b: m.$WGS84_B;
+  $f: m.$WGS84_F;
+
+  $phi1: m.deg-to-rad($lat1);
+  $phi2: m.deg-to-rad($lat2);
+  $L: m.deg-to-rad($lon2 - $lon1);
+
+  // Reduced latitudes
+  $U1: m.atan((1 - $f) * m.tan($phi1));
+  $U2: m.atan((1 - $f) * m.tan($phi2));
+
+  $sinU1: m.sin($U1); $cosU1: m.cos($U1);
+  $sinU2: m.sin($U2); $cosU2: m.cos($U2);
+
+  $lambda: $L;
+  $lambda-prev: 0;
+  $iter-limit: 30;
+
+  $cos-sq-alpha: 0;
+  $sin-sigma: 0;
+  $cos-sigma: 0;
+  $sigma: 0;
+  $cos-2sigma-m: 0;
+
+  @while $iter-limit > 0 {
+    $sin-lambda: m.sin($lambda);
+    $cos-lambda: m.cos($lambda);
+
+    $term1: $cosU2 * $sin-lambda;
+    $term2: ($cosU1 * $sinU2) - ($sinU1 * $cosU2 * $cos-lambda);
+    $sin-sigma: m.sqrt(($term1 * $term1) + ($term2 * $term2));
+
+    @if $sin-sigma < m.$EPSILON {
+      @return 0; // Coincident points
+    }
+
+    $cos-sigma: ($sinU1 * $sinU2) + ($cosU1 * $cosU2 * $cos-lambda);
+    $sigma: m.atan2($sin-sigma, $cos-sigma);
+
+    $sin-alpha: math.div($cosU1 * $cosU2 * $sin-lambda, $sin-sigma);
+    $cos-sq-alpha: 1 - ($sin-alpha * $sin-alpha);
+
+    @if $cos-sq-alpha < m.$EPSILON {
+      $cos-2sigma-m: 0; // Equatorial line
+    } @else {
+      $cos-2sigma-m: $cos-sigma - math.div(2 * $sinU1 * $sinU2, $cos-sq-alpha);
+    }
+
+    $C: math.div($f, 16) * $cos-sq-alpha * (4 + $f * (4 - 3 * $cos-sq-alpha));
+    $lambda-prev: $lambda;
+    $lambda: $L + (1 - $C) * $f * $sin-alpha * ($sigma + $C * $sin-sigma * ($cos-2sigma-m + $C * $cos-sigma * (-1 + 2 * $cos-2sigma-m * $cos-2sigma-m)));
+
+    @if m.abs($lambda - $lambda-prev) < 0.000000000001 {
+      $iter-limit: 0;
+    } @else {
+      $iter-limit: $iter-limit - 1;
+    }
+  }
+
+  $u-sq: $cos-sq-alpha * math.div(($a * $a) - ($b * $b), $b * $b);
+  $A: 1 + math.div($u-sq, 16384) * (4096 + $u-sq * (-768 + $u-sq * (320 - 175 * $u-sq)));
+  $B: math.div($u-sq, 1024) * (256 + $u-sq * (-128 + $u-sq * (74 - 47 * $u-sq)));
+
+  $delta-sigma: $B * $sin-sigma * ($cos-2sigma-m + math.div($B, 4) * ($cos-sigma * (-1 + 2 * $cos-2sigma-m * $cos-2sigma-m) - math.div($B, 6) * $cos-2sigma-m * (-3 + 4 * $sin-sigma * $sin-sigma) * (-3 + 4 * $cos-2sigma-m * $cos-2sigma-m)));
+
+  $s: $b * $A * ($sigma - $delta-sigma);
+  @return $s;
+}
