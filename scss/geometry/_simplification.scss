@@ -1,0 +1,139 @@
+// Graticule Cartographic Generalization - Simplification
+// Ramer-Douglas-Peucker (RDP) perpendicular distance filtering and
+// Visvalingam-Whyatt effective-area polygon and polyline reduction.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Computes perpendicular distance from a 2D point P to the line segment AB.
+/// @param {Map} $p - Point (x, y)
+/// @param {Map} $a - Segment start (x, y)
+/// @param {Map} $b - Segment end (x, y)
+/// @return {Number} Perpendicular distance
+@function perpendicular-distance($p, $a, $b) {
+  $px: map.get($p, "x"); $py: map.get($p, "y");
+  $ax: map.get($a, "x"); $ay: map.get($a, "y");
+  $bx: map.get($b, "x"); $by: map.get($b, "y");
+
+  $dx: $bx - $ax;
+  $dy: $by - $ay;
+  $len-sq: ($dx * $dx) + ($dy * $dy);
+
+  @if $len-sq < m.$EPSILON {
+    @return m.hypot($px - $ax, $py - $ay);
+  }
+
+  $numerator: m.abs(($dy * $px) - ($dx * $py) + ($bx * $ay) - ($by * $ax));
+  @return math.div($numerator, m.sqrt($len-sq));
+}
+
+/// Computes the effective area of the triangle formed by points (p0, p1, p2).
+/// Used in the Visvalingam-Whyatt generalization algorithm.
+@function triangle-area($p0, $p1, $p2) {
+  $x0: map.get($p0, "x"); $y0: map.get($p0, "y");
+  $x1: map.get($p1, "x"); $y1: map.get($p1, "y");
+  $x2: map.get($p2, "x"); $y2: map.get($p2, "y");
+
+  $area: 0.5 * m.abs(($x0 * ($y1 - $y2)) + ($x1 * ($y2 - $y0)) + ($x2 * ($y0 - $y1)));
+  @return $area;
+}
+
+/// Internal recursive helper for Ramer-Douglas-Peucker simplification.
+@function _rdp-recurse($points, $start-idx, $end-idx, $epsilon) {
+  $dmax: 0;
+  $index: 0;
+
+  $start-pt: list.nth($points, $start-idx);
+  $end-pt: list.nth($points, $end-idx);
+
+  @if $end-idx > $start-idx + 1 {
+    @for $i from ($start-idx + 1) to $end-idx {
+      $pt: list.nth($points, $i);
+      $d: perpendicular-distance($pt, $start-pt, $end-pt);
+      @if $d > $dmax {
+        $index: $i;
+        $dmax: $d;
+      }
+    }
+  }
+
+  @if $dmax > $epsilon {
+    $res1: _rdp-recurse($points, $start-idx, $index, $epsilon);
+    $res2: _rdp-recurse($points, $index, $end-idx, $epsilon);
+    
+    // Combine results omitting the duplicated split point
+    $combined: ();
+    @for $i from 1 to list.length($res1) {
+      $combined: list.append($combined, list.nth($res1, $i));
+    }
+    @for $i from 1 through list.length($res2) {
+      $combined: list.append($combined, list.nth($res2, $i));
+    }
+    @return $combined;
+  }
+
+  @return ($start-pt, $end-pt);
+}
+
+/// Simplifies a polyline using the Ramer-Douglas-Peucker (RDP) algorithm.
+/// @param {List} $points - Ordered list of vec2 maps
+/// @param {Number} $epsilon - Maximum perpendicular distance tolerance
+/// @return {List} Simplified list of points
+@function rdp-simplify($points, $epsilon: 1) {
+  $len: list.length($points);
+  @if $len <= 2 {
+    @return $points;
+  }
+  @return _rdp-recurse($points, 1, $len, $epsilon);
+}
+
+/// Simplifies a polyline using the Visvalingam-Whyatt area-based algorithm.
+/// Iteratively eliminates the vertex associated with the smallest triangular area.
+/// Produces natural, smooth cartographic lines without spike artifacts.
+/// @param {List} $points - Ordered list of vec2 maps
+/// @param {Number} $min-area - Minimum triangle area threshold for retention
+/// @return {List} Simplified list of points
+@function visvalingam-simplify($points, $min-area: 1) {
+  $current: $points;
+  $len: list.length($current);
+
+  @if $len <= 2 {
+    @return $current;
+  }
+
+  $modified: true;
+  @while $modified and $len > 2 {
+    $min-idx: 0;
+    $min-val: 999999999999;
+
+    @for $i from 2 to $len {
+      $p-prev: list.nth($current, $i - 1);
+      $p-curr: list.nth($current, $i);
+      $p-next: list.nth($current, $i + 1);
+
+      $area: triangle-area($p-prev, $p-curr, $p-next);
+      @if $area < $min-val {
+        $min-val: $area;
+        $min-idx: $i;
+      }
+    }
+
+    @if $min-val < $min-area and $min-idx > 0 {
+      // Remove vertex at min-idx
+      $next-list: ();
+      @for $i from 1 through $len {
+        @if $i != $min-idx {
+          $next-list: list.append($next-list, list.nth($current, $i));
+        }
+      }
+      $current: $next-list;
+      $len: list.length($current);
+    } @else {
+      $modified: false;
+    }
+  }
+
+  @return $current;
+}
