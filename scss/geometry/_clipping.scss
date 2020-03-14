@@ -1,0 +1,155 @@
+// Graticule Computational Geometry - Clipping
+// Sutherland-Hodgman polygon clipping, Cohen-Sutherland line clipping,
+// and antimeridian geographic boundary splitting.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Tests whether a 2D point is inside an edge half-plane.
+/// Edge is defined by directed points A -> B. Points to the left are inside.
+@function is-inside-edge($p, $edge-a, $edge-b) {
+  $px: map.get($p, "x"); $py: map.get($p, "y");
+  $ax: map.get($edge-a, "x"); $ay: map.get($edge-a, "y");
+  $bx: map.get($edge-b, "x"); $by: map.get($edge-b, "y");
+
+  // Cross product (B - A) x (P - A) >= 0 indicates inside or on boundary
+  $cross: (($bx - $ax) * ($py - $ay)) - (($by - $ay) * ($px - $ax));
+  @return $cross >= -m.$EPSILON;
+}
+
+/// Computes the intersection point between line segment P1-P2 and infinite edge line A-B.
+@function edge-intersection($p1, $p2, $edge-a, $edge-b) {
+  $x1: map.get($p1, "x"); $y1: map.get($p1, "y");
+  $x2: map.get($p2, "x"); $y2: map.get($p2, "y");
+  $x3: map.get($edge-a, "x"); $y3: map.get($edge-a, "y");
+  $x4: map.get($edge-b, "x"); $y4: map.get($edge-b, "y");
+
+  $denom: (($x1 - $x2) * ($y3 - $y4)) - (($y1 - $y2) * ($x3 - $x4));
+  @if m.abs($denom) < m.$EPSILON {
+    @return $p1;
+  }
+
+  $term1: ($x1 * $y2) - ($y1 * $x2);
+  $term2: ($x3 * $y4) - ($y3 * $x4);
+
+  $ix: math.div(($term1 * ($x3 - $x4)) - (($x1 - $x2) * $term2), $denom);
+  $iy: math.div(($term1 * ($y3 - $y4)) - (($y1 - $y2) * $term2), $denom);
+
+  @return m.vec2($ix, $iy);
+}
+
+/// Clips a subject polygon against a single directed clipping edge using Sutherland-Hodgman.
+@function _clip-polygon-edge($polygon, $edge-a, $edge-b) {
+  $output: ();
+  $len: list.length($polygon);
+  @if $len == 0 {
+    @return $output;
+  }
+
+  $s: list.nth($polygon, $len);
+  @for $i from 1 through $len {
+    $e: list.nth($polygon, $i);
+
+    $e-inside: is-inside-edge($e, $edge-a, $edge-b);
+    $s-inside: is-inside-edge($s, $edge-a, $edge-b);
+
+    @if $e-inside {
+      @if not $s-inside {
+        $inter: edge-intersection($s, $e, $edge-a, $edge-b);
+        $output: list.append($output, $inter);
+      }
+      $output: list.append($output, $e);
+    } @else if $s-inside {
+      $inter: edge-intersection($s, $e, $edge-a, $edge-b);
+      $output: list.append($output, $inter);
+    }
+
+    $s: $e;
+  }
+
+  @return $output;
+}
+
+/// Sutherland-Hodgman polygon clipping against an arbitrary convex clip polygon.
+/// @param {List} $subject-polygon - Ordered list of vec2 points
+/// @param {List} $clip-polygon - Ordered convex boundary vertices in CCW order
+/// @return {List} Clipped polygon vertices
+@function sutherland-hodgman-clip($subject-polygon, $clip-polygon) {
+  $output: $subject-polygon;
+  $num-clip-edges: list.length($clip-polygon);
+
+  @for $i from 1 through $num-clip-edges {
+    $edge-a: list.nth($clip-polygon, $i);
+    $next-idx: $i + 1;
+    @if $i == $num-clip-edges {
+      $next-idx: 1;
+    }
+    $edge-b: list.nth($clip-polygon, $next-idx);
+
+    $output: _clip-polygon-edge($output, $edge-a, $edge-b);
+    @if list.length($output) == 0 {
+      @return $output;
+    }
+  }
+
+  @return $output;
+}
+
+/// Clips a polygon against an axis-aligned rectangular viewport bounding box.
+/// @param {List} $polygon - Subject vertices
+/// @param {Number} $min-x - Minimum X
+/// @param {Number} $min-y - Minimum Y
+/// @param {Number} $max-x - Maximum X
+/// @param {Number} $max-y - Maximum Y
+/// @return {List} Clipped polygon
+@function clip-polygon-bbox($polygon, $min-x, $min-y, $max-x, $max-y) {
+  // Counter-clockwise clip boundary rectangle
+  $clip-rect: (
+    m.vec2($min-x, $min-y),
+    m.vec2($max-x, $min-y),
+    m.vec2($max-x, $max-y),
+    m.vec2($min-x, $max-y)
+  );
+  @return sutherland-hodgman-clip($polygon, $clip-rect);
+}
+
+/// Splits geographic polyline segments crossing the 180-degree antimeridian seam.
+/// Prevents horizontal wrap-around streaks across world maps.
+/// @param {List} $coordinates - List of ("lon": degrees, "lat": degrees) maps
+/// @return {List} List of continuous polyline segments
+@function split-antimeridian-polyline($coordinates) {
+  $segments: ();
+  $current-segment: ();
+  $len: list.length($coordinates);
+
+  @if $len == 0 {
+    @return $segments;
+  }
+
+  $current-segment: list.append($current-segment, list.nth($coordinates, 1));
+
+  @for $i from 2 through $len {
+    $prev: list.nth($coordinates, $i - 1);
+    $curr: list.nth($coordinates, $i);
+
+    $lon1: map.get($prev, "lon");
+    $lon2: map.get($curr, "lon");
+
+    // Check if step crosses antimeridian (delta > 180 degrees)
+    @if m.abs($lon2 - $lon1) > 180 {
+      // End current segment and start new segment
+      $segments: list.append($segments, $current-segment);
+      $current-segment: ($curr);
+    } @else {
+      $current-segment: list.append($current-segment, $curr);
+    }
+  }
+
+  @if list.length($current-segment) > 0 {
+    $segments: list.append($segments, $current-segment);
+  }
+
+  @return $segments;
+}
