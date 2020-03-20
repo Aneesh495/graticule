@@ -1,0 +1,144 @@
+// Graticule Computational Geometry - Convex Hull
+// Andrew's Monotone Chain 2D convex hull algorithm with lexicographical point sorting.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// 2D cross product of directed vectors OA and OB: (A.x - O.x) * (B.y - O.y) - (A.y - O.y) * (B.x - O.x).
+/// Returns positive if O -> A -> B makes a counter-clockwise turn.
+@function cross-product-2d($o, $a, $b) {
+  $ox: map.get($o, "x"); $oy: map.get($o, "y");
+  $ax: map.get($a, "x"); $ay: map.get($a, "y");
+  $bx: map.get($b, "x"); $by: map.get($b, "y");
+
+  @return (($ax - $ox) * ($by - $oy)) - (($ay - $oy) * ($bx - $ox));
+}
+
+/// Lexicographical comparison between two 2D points.
+/// Returns true if p1 is strictly less than p2 (x1 < x2, or x1 == x2 and y1 < y2).
+@function point-less-than($p1, $p2) {
+  $x1: map.get($p1, "x"); $y1: map.get($p1, "y");
+  $x2: map.get($p2, "x"); $y2: map.get($p2, "y");
+
+  @if $x1 < $x2 {
+    @return true;
+  }
+  @if $x1 == $x2 and $y1 < $y2 {
+    @return true;
+  }
+  @return false;
+}
+
+/// Sorts a list of 2D points lexicographically using merge sort.
+@function sort-points($points) {
+  $len: list.length($points);
+  @if $len <= 1 {
+    @return $points;
+  }
+
+  $mid: math.floor(math.div($len, 2));
+  $left: ();
+  $right: ();
+
+  @for $i from 1 through $mid {
+    $left: list.append($left, list.nth($points, $i));
+  }
+  @for $i from ($mid + 1) through $len {
+    $right: list.append($right, list.nth($points, $i));
+  }
+
+  $sorted-left: sort-points($left);
+  $sorted-right: sort-points($right);
+
+  // Merge step
+  $merged: ();
+  $i-l: 1; $len-l: list.length($sorted-left);
+  $i-r: 1; $len-r: list.length($sorted-right);
+
+  @while $i-l <= $len-l and $i-r <= $len-r {
+    $pl: list.nth($sorted-left, $i-l);
+    $pr: list.nth($sorted-right, $i-r);
+
+    @if point-less-than($pl, $pr) {
+      $merged: list.append($merged, $pl);
+      $i-l: $i-l + 1;
+    } @else {
+      $merged: list.append($merged, $pr);
+      $i-r: $i-r + 1;
+    }
+  }
+
+  @while $i-l <= $len-l {
+    $merged: list.append($merged, list.nth($sorted-left, $i-l));
+    $i-l: $i-l + 1;
+  }
+  @while $i-r <= $len-r {
+    $merged: list.append($merged, list.nth($sorted-right, $i-r));
+    $i-r: $i-r + 1;
+  }
+
+  @return $merged;
+}
+
+/// Computes the 2D convex hull of a point set using Andrew's Monotone Chain algorithm.
+/// Guarantees vertices are ordered counter-clockwise.
+/// @param {List} $points - List of vec2 points
+/// @return {List} Minimal convex hull vertices in counter-clockwise order
+@function convex-hull-2d($points) {
+  $len: list.length($points);
+  @if $len <= 2 {
+    @return $points;
+  }
+
+  $sorted: sort-points($points);
+
+  // Build lower hull
+  $lower: ();
+  @for $i from 1 through $len {
+    $p: list.nth($sorted, $i);
+    $k: list.length($lower);
+    @while $k >= 2 and cross-product-2d(list.nth($lower, $k - 1), list.nth($lower, $k), $p) <= 0 {
+      // Pop last point
+      $popped: ();
+      @for $j from 1 to $k {
+        $popped: list.append($popped, list.nth($lower, $j));
+      }
+      $lower: $popped;
+      $k: list.length($lower);
+    }
+    $lower: list.append($lower, $p);
+  }
+
+  // Build upper hull
+  $upper: ();
+  @for $i from $len through 1 {
+    $p: list.nth($sorted, $i);
+    $k: list.length($upper);
+    @while $k >= 2 and cross-product-2d(list.nth($upper, $k - 1), list.nth($upper, $k), $p) <= 0 {
+      // Pop last point
+      $popped: ();
+      @for $j from 1 to $k {
+        $popped: list.append($popped, list.nth($upper, $j));
+      }
+      $upper: $popped;
+      $k: list.length($upper);
+    }
+    $upper: list.append($upper, $p);
+  }
+
+  // Concatenate lower and upper hulls, omitting the duplicate end points
+  $hull: ();
+  $len-lower: list.length($lower);
+  @for $i from 1 to $len-lower {
+    $hull: list.append($hull, list.nth($lower, $i));
+  }
+
+  $len-upper: list.length($upper);
+  @for $i from 1 to $len-upper {
+    $hull: list.append($hull, list.nth($upper, $i));
+  }
+
+  @return $hull;
+}
