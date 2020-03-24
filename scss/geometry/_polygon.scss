@@ -1,0 +1,199 @@
+// Graticule Computational Geometry - Polygon Topology
+// Shoelace formula area, centroid calculation, winding order normalization,
+// bounding box estimation, and ray-casting point-in-polygon tests.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Computes the signed planar area of a polygon via the Shoelace formula (Gauss's area formula).
+/// Positive area indicates counter-clockwise winding; negative indicates clockwise.
+/// @param {List} $points - Ordered list of vec2 vertices
+/// @return {Number} Signed polygon area
+@function polygon-signed-area($points) {
+  $n: list.length($points);
+  @if $n < 3 {
+    @return 0;
+  }
+
+  $sum: 0;
+  @for $i from 1 through $n {
+    $j: $i + 1;
+    @if $i == $n {
+      $j: 1;
+    }
+    $p1: list.nth($points, $i);
+    $p2: list.nth($points, $j);
+
+    $x1: map.get($p1, "x"); $y1: map.get($p1, "y");
+    $x2: map.get($p2, "x"); $y2: map.get($p2, "y");
+
+    $sum: $sum + (($x1 * $y2) - ($x2 * $y1));
+  }
+
+  @return 0.5 * $sum;
+}
+
+/// Computes the absolute planar area of a polygon.
+/// @param {List} $points - Ordered list of vec2 vertices
+/// @return {Number} Non-negative area
+@function polygon-area($points) {
+  @return m.abs(polygon-signed-area($points));
+}
+
+/// Computes the geometric centroid (center of mass) of a polygon.
+/// @param {List} $points - Ordered list of vec2 vertices
+/// @return {Map} Centroid vec2 point
+@function polygon-centroid($points) {
+  $n: list.length($points);
+  @if $n == 0 {
+    @return m.vec2(0, 0);
+  }
+  @if $n == 1 {
+    @return list.nth($points, 1);
+  }
+  @if $n == 2 {
+    $p1: list.nth($points, 1);
+    $p2: list.nth($points, 2);
+    @return m.vec2(0.5 * (map.get($p1, "x") + map.get($p2, "x")), 0.5 * (map.get($p1, "y") + map.get($p2, "y")));
+  }
+
+  $signed-a: polygon-signed-area($points);
+  @if m.abs($signed-a) < m.$EPSILON {
+    // Degenerate polygon: fallback to arithmetic mean
+    $sum-x: 0; $sum-y: 0;
+    @for $i from 1 through $n {
+      $p: list.nth($points, $i);
+      $sum-x: $sum-x + map.get($p, "x");
+      $sum-y: $sum-y + map.get($p, "y");
+    }
+    @return m.vec2(math.div($sum-x, $n), math.div($sum-y, $n));
+  }
+
+  $factor: math.div(1, 6 * $signed-a);
+  $cx: 0;
+  $cy: 0;
+
+  @for $i from 1 through $n {
+    $j: $i + 1;
+    @if $i == $n {
+      $j: 1;
+    }
+    $p1: list.nth($points, $i);
+    $p2: list.nth($points, $j);
+
+    $x1: map.get($p1, "x"); $y1: map.get($p1, "y");
+    $x2: map.get($p2, "x"); $y2: map.get($p2, "y");
+
+    $cross: ($x1 * $y2) - ($x2 * $y1);
+    $cx: $cx + (($x1 + $x2) * $cross);
+    $cy: $cy + (($y1 + $y2) * $cross);
+  }
+
+  @return m.vec2($cx * $factor, $cy * $factor);
+}
+
+/// Checks whether the polygon vertices follow clockwise winding order.
+/// @param {List} $points - Ordered list of vec2 vertices
+/// @return {Boolean} True if clockwise
+@function polygon-is-clockwise($points) {
+  @return polygon-signed-area($points) < 0;
+}
+
+/// Reverses the vertex ordering of a polygon.
+/// @param {List} $points - Ordered list of vec2 vertices
+/// @return {List} Reversed list
+@function polygon-reverse($points) {
+  $rev: ();
+  $n: list.length($points);
+  @for $i from $n through 1 {
+    $rev: list.append($rev, list.nth($points, $i));
+  }
+  @return $rev;
+}
+
+/// Normalizes polygon winding order to either counter-clockwise (default) or clockwise.
+/// @param {List} $points - Ordered list of vec2 vertices
+/// @param {Boolean} $clockwise - Target winding direction
+/// @return {List} Normalized vertices
+@function polygon-ensure-winding($points, $clockwise: false) {
+  $is-cw: polygon-is-clockwise($points);
+  @if $is-cw != $clockwise {
+    @return polygon-reverse($points);
+  }
+  @return $points;
+}
+
+/// Tests whether a 2D point lies inside a polygon using ray casting (Jordan curve theorem).
+/// @param {Map} $point - Test point vec2
+/// @param {List} $polygon - Polygon vertices
+/// @return {Boolean} True if point is strictly inside
+@function point-in-polygon($point, $polygon) {
+  $px: map.get($point, "x");
+  $py: map.get($point, "y");
+  $n: list.length($polygon);
+  $inside: false;
+
+  @for $i from 1 through $n {
+    $j: $i + 1;
+    @if $i == $n {
+      $j: 1;
+    }
+    $p1: list.nth($polygon, $i);
+    $p2: list.nth($polygon, $j);
+
+    $x1: map.get($p1, "x"); $y1: map.get($p1, "y");
+    $x2: map.get($p2, "x"); $y2: map.get($p2, "y");
+
+    // Check if point y is between edge endpoints
+    $cond1: ($y1 > $py) != ($y2 > $py);
+    @if $cond1 {
+      // Calculate intersection x coordinate
+      $intersect-x: $x1 + math.div(($py - $y1) * ($x2 - $x1), $y2 - $y1);
+      @if $px < $intersect-x {
+        $inside: not $inside;
+      }
+    }
+  }
+
+  @return $inside;
+}
+
+/// Computes the 2D axis-aligned bounding box (AABB) of a point set.
+/// @param {List} $points - List of vec2 points
+/// @return {Map} Bounding box ("min-x", "min-y", "max-x", "max-y", "width", "height")
+@function polygon-bbox($points) {
+  $n: list.length($points);
+  @if $n == 0 {
+    @return (
+      "min-x": 0, "min-y": 0,
+      "max-x": 0, "max-y": 0,
+      "width": 0, "height": 0
+    );
+  }
+
+  $first: list.nth($points, 1);
+  $min-x: map.get($first, "x"); $max-x: $min-x;
+  $min-y: map.get($first, "y"); $max-y: $min-y;
+
+  @for $i from 2 through $n {
+    $p: list.nth($points, $i);
+    $x: map.get($p, "x");
+    $y: map.get($p, "y");
+
+    @if $x < $min-x { $min-x: $x; }
+    @if $x > $max-x { $max-x: $x; }
+    @if $y < $min-y { $min-y: $y; }
+    @if $y > $max-y { $max-y: $y; }
+  }
+
+  @return (
+    "min-x": $min-x,
+    "min-y": $min-y,
+    "max-x": $max-x,
+    "max-y": $max-y,
+    "width": $max-x - $min-x,
+    "height": $max-y - $min-y
+  );
+}
