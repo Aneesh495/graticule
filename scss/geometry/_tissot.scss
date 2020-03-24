@@ -1,0 +1,66 @@
+// Graticule Cartographic Distortion - Tissot's Indicatrix
+// Analytical deformation ellipses, areal scale factors, and angular distortion indices.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "geodesy" as g;
+
+/// Computes the principal deformation characteristics of Tissot's indicatrix.
+/// @param {Number} $h - Meridian scale factor
+/// @param {Number} $k - Parallel scale factor
+/// @param {Number} $theta-prime-rad - Angle between projected meridian and parallel in radians
+/// @return {Map} Deformation indices ("a", "b", "area-scale", "max-angular-deformation-deg")
+@function tissot-indices($h, $k, $theta-prime-rad: m.$HALF_PI) {
+  $sin-theta: m.sin($theta-prime-rad);
+  $s: $h * $k * $sin-theta; // Areal deformation factor
+
+  $hk-sum-sq: ($h * $h) + ($k * $k) + (2 * $h * $k * $sin-theta);
+  $hk-diff-sq: ($h * $h) + ($k * $k) - (2 * $h * $k * $sin-theta);
+
+  $sum-clamped: $hk-sum-sq;
+  @if $sum-clamped < 0 { $sum-clamped: 0; }
+  $diff-clamped: $hk-diff-sq;
+  @if $diff-clamped < 0 { $diff-clamped: 0; }
+
+  $a-plus-b: m.sqrt($sum-clamped);
+  $a-minus-b: m.sqrt($diff-clamped);
+
+  $a: 0.5 * ($a-plus-b + $a-minus-b); // Maximum principal scale factor
+  $b: 0.5 * ($a-plus-b - $a-minus-b); // Minimum principal scale factor
+
+  $ratio: 0;
+  @if ($a + $b) > m.$EPSILON {
+    $ratio: math.div($a - $b, $a + $b);
+  }
+  $omega: 2 * m.asin(m.clamp($ratio, -1, 1)); // Maximum angular deformation
+
+  @return (
+    "a": $a,
+    "b": $b,
+    "area-scale": $s,
+    "max-angular-deformation-rad": $omega,
+    "max-angular-deformation-deg": m.rad-to-deg($omega)
+  );
+}
+
+/// Generates a set of geographic circle vertices on the sphere centered at (center-lon, center-lat).
+/// When projected through any cartographic projection, this yields the visual Tissot ellipse.
+/// @param {Number} $center-lon - Center longitude in degrees
+/// @param {Number} $center-lat - Center latitude in degrees
+/// @param {Number} $angular-radius-deg - Angular radius in degrees (e.g. 5 degrees)
+/// @param {Number} $num-points - Number of perimeter vertices (default 32)
+/// @return {List} List of ("lon": degrees, "lat": degrees) points
+@function tissot-circle-coordinates($center-lon, $center-lat, $angular-radius-deg: 5, $num-points: 32) {
+  $coords: ();
+  $dist-meters: m.deg-to-rad($angular-radius-deg) * m.$EARTH_RADIUS_MEAN;
+
+  @for $i from 0 through $num-points {
+    $bearing: math.div($i * 360, $num-points);
+    $dest: g.destination-point($center-lon, $center-lat, $dist-meters, $bearing);
+    $coords: list.append($coords, $dest);
+  }
+
+  @return $coords;
+}
