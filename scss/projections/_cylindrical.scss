@@ -1,0 +1,240 @@
+// Graticule Cartographic Projections - Cylindrical Family
+// Plate Carree, Mercator, Web Mercator (EPSG:3857), Gall-Peters,
+// Lambert Cylindrical Equal-Area, Miller, and Transverse Mercator.
+
+@use "sass:math";
+@use "sass:map";
+@use "../math" as m;
+
+/// Forward Plate Carree (Equirectangular) projection.
+/// Maps spherical coordinates directly to Cartesian grid.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $standard-lat - Standard parallel in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-equirectangular($lon, $lat, $lon0: 0, $standard-lat: 0) {
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad($lat);
+  $cos-phi0: m.cos-deg($standard-lat);
+
+  $x: $lambda * $cos-phi0;
+  $y: $phi;
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Plate Carree projection: Cartesian (x, y) -> Geographic ("lon", "lat").
+@function invert-equirectangular($p, $lon0: 0, $standard-lat: 0) {
+  $cos-phi0: m.cos-deg($standard-lat);
+  @if m.abs($cos-phi0) < m.$EPSILON {
+    $cos-phi0: 1;
+  }
+  $lon: m.rad-to-deg(math.div(map.get($p, "x"), $cos-phi0)) + $lon0;
+  $lat: m.rad-to-deg(map.get($p, "y"));
+
+  @return (
+    "lon": m.normalize-lon($lon),
+    "lat": m.clamp-lat($lat)
+  );
+}
+
+/// Forward Conformal Mercator projection.
+/// Preserves local angles and shapes. Conformal rhumb lines are straight lines.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees (clamped to [-85.051129, 85.051129])
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-mercator($lon, $lat, $lon0: 0) {
+  $clamped-lat: m.clamp($lat, -85.05112878, 85.05112878);
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad($clamped-lat);
+
+  $x: $lambda;
+  $y: m.inv-gd($phi);
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Conformal Mercator projection.
+@function invert-mercator($p, $lon0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+
+  $lon: m.rad-to-deg($x) + $lon0;
+  $lat: m.rad-to-deg(m.gd($y));
+
+  @return (
+    "lon": m.normalize-lon($lon),
+    "lat": m.clamp-lat($lat)
+  );
+}
+
+/// Forward Web Mercator (EPSG:3857 / Pseudo-Mercator) normalized to unit square [0, 1].
+/// Standard coordinate frame for web slippy map tile pyramids.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @return {Map} Normalized unit coordinates in [0, 1]
+@function project-web-mercator($lon, $lat) {
+  $clamped-lat: m.clamp($lat, -85.05112878, 85.05112878);
+  $lambda: m.deg-to-rad($lon);
+  $phi: m.deg-to-rad($clamped-lat);
+
+  $u: math.div($lambda + m.$PI, m.$TAU);
+  $v: 0.5 - math.div(m.inv-gd($phi), m.$TAU);
+
+  @return m.vec2($u, $v);
+}
+
+/// Inverse Web Mercator projection: [0, 1] normalized tile coordinates -> (lon, lat).
+@function invert-web-mercator($p) {
+  $u: map.get($p, "x");
+  $v: map.get($p, "y");
+
+  $lon: ($u * 360) - 180;
+  $y-rad: (0.5 - $v) * m.$TAU;
+  $lat: m.rad-to-deg(m.gd($y-rad));
+
+  @return (
+    "lon": m.normalize-lon($lon),
+    "lat": m.clamp-lat($lat)
+  );
+}
+
+/// Forward Gall-Peters Equal-Area Cylindrical projection.
+/// Preserves relative areal proportions with standard parallels at +/-45 degrees.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-gall-peters($lon, $lat, $lon0: 0) {
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad($lat);
+
+  // Scale factors for standard parallel 45 deg: cos(45) = 1/sqrt(2)
+  $x: math.div($lambda, m.$SQRT2);
+  $y: m.$SQRT2 * m.sin($phi);
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Gall-Peters projection.
+@function invert-gall-peters($p, $lon0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+
+  $lambda: $x * m.$SQRT2;
+  $sin-phi: math.div($y, m.$SQRT2);
+  $phi: m.asin(m.clamp($sin-phi, -1, 1));
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.rad-to-deg($phi)
+  );
+}
+
+/// Forward Lambert Cylindrical Equal-Area projection (standard parallel at Equator).
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-lambert-cylindrical($lon, $lat, $lon0: 0) {
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad($lat);
+
+  $x: $lambda;
+  $y: m.sin($phi);
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Lambert Cylindrical Equal-Area projection.
+@function invert-lambert-cylindrical($p, $lon0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+
+  $lambda: $x;
+  $phi: m.asin(m.clamp($y, -1, 1));
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.rad-to-deg($phi)
+  );
+}
+
+/// Forward Miller Cylindrical compromise projection.
+/// Avoids polar singularity by scaling latitude by 0.8 before Mercator transform.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-miller($lon, $lat, $lon0: 0) {
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad($lat);
+
+  $x: $lambda;
+  $y: 1.25 * m.inv-gd(0.8 * $phi);
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Miller Cylindrical projection.
+@function invert-miller($p, $lon0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+
+  $lambda: $x;
+  $phi: 1.25 * m.gd(0.8 * $y);
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
+
+/// Forward Transverse Mercator (Gauss-Kruger 4th order series expansion).
+/// Rotates the cylinder 90 degrees to align with a central meridian.
+/// Conformal across narrow longitudinal zones (standard for UTM grids).
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-transverse-mercator($lon, $lat, $lon0: 0) {
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad($lat);
+
+  $cos-phi: m.cos($phi);
+  $sin-phi: m.sin($phi);
+  $tan-phi: m.tan($phi);
+
+  // Conformal sphere isometric coordinates
+  $B: $cos-phi * m.sin($lambda);
+  @if m.abs($B) > 0.9999999 {
+    $B: m.sign($B) * 0.9999999;
+  }
+
+  $x: 0.5 * m.ln(math.div(1 + $B, 1 - $B));
+  $y: m.atan2($tan-phi, m.cos($lambda));
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Transverse Mercator projection.
+@function invert-transverse-mercator($p, $lon0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+
+  $sinh-x: m.sinh($x);
+  $cosh-x: m.cosh($x);
+  $sin-y: m.sin($y);
+  $cos-y: m.cos($y);
+
+  $D: math.div($sin-y, $cosh-x);
+  $phi: m.asin(m.clamp($D, -1, 1));
+  $lambda: m.atan2($sinh-x, $cos-y);
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
