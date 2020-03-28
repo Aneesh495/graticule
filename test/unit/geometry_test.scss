@@ -1,0 +1,111 @@
+// Graticule Geometry and Geodesy Unit Tests
+// Verification of great-circle geodesy, polygon clipping, convex hull, and topology.
+
+@use "sass:math";
+@use "sass:map";
+@use "sass:list";
+@use "../../scss/math" as m;
+@use "../../scss/geometry" as g;
+
+@mixin assert-equal($test-name, $actual, $expected, $tolerance: 0.0001) {
+  $diff: m.abs($actual - $expected);
+  @if $diff > $tolerance {
+    @error "ASSERTION FAILED: [#{$test-name}] Expected #{$expected}, got #{$actual} (delta: #{$diff} > tolerance #{$tolerance})";
+  }
+}
+
+@mixin assert-true($test-name, $condition) {
+  @if not $condition {
+    @error "ASSERTION FAILED: [#{$test-name}] Condition evaluated to false";
+  }
+}
+
+// 1. Geodesy: London to Paris Great Circle
+$lon-lon: -0.1278; $lat-lon: 51.5074; // London
+$lon-par: 2.3522;  $lat-par: 48.8566; // Paris
+
+$dist-haversine: g.haversine-distance($lon-lon, $lat-lon, $lon-par, $lat-par);
+// London to Paris is ~343,556 meters
+@include assert-equal("Haversine London-Paris distance km", math.div($dist-haversine, 1000), 343.55, 5.0);
+
+$bearing: g.initial-bearing($lon-lon, $lat-lon, $lon-par, $lat-par);
+// Bearing is approx 149 degrees (South-South-East)
+@include assert-equal("Initial bearing London to Paris deg", $bearing, 149.0, 3.0);
+
+// Destination point verification
+$dest: g.destination-point($lon-lon, $lat-lon, $dist-haversine, $bearing);
+@include assert-equal("Destination point latitude", map.get($dest, "lat"), $lat-par, 0.1);
+@include assert-equal("Destination point longitude", map.get($dest, "lon"), $lon-par, 0.1);
+
+// WGS-84 Vincenty Inverse distance
+$dist-vincenty: g.vincenty-inverse-distance($lon-lon, $lat-lon, $lon-par, $lat-par);
+@include assert-equal("Vincenty WGS-84 London-Paris distance km", math.div($dist-vincenty, 1000), 343.9, 5.0);
+
+// Great-circle waypoint fraction 0 and 1
+$wp0: g.great-circle-waypoint($lon-lon, $lat-lon, $lon-par, $lat-par, 0);
+@include assert-equal("Waypoint f=0 lat", map.get($wp0, "lat"), $lat-lon, 0.001);
+$wp1: g.great-circle-waypoint($lon-lon, $lat-lon, $lon-par, $lat-par, 1);
+@include assert-equal("Waypoint f=1 lat", map.get($wp1, "lat"), $lat-par, 0.001);
+
+// 2. Line Simplification (RDP and Visvalingam)
+// Polyline with 5 points where middle 3 are perfectly collinear with endpoints
+$collinear-line: (
+  m.vec2(0, 0),
+  m.vec2(2, 2),
+  m.vec2(5, 5),
+  m.vec2(8, 8),
+  m.vec2(10, 10)
+);
+$rdp-res: g.rdp-simplify($collinear-line, 0.1);
+@include assert-equal("RDP simplified collinear length", list.length($rdp-res), 2, 0);
+
+$vis-res: g.visvalingam-simplify($collinear-line, 0.1);
+@include assert-equal("Visvalingam simplified collinear length", list.length($vis-res), 2, 0);
+
+// 3. Polygon Topology (Shoelace area, centroid, winding)
+$square: (
+  m.vec2(0, 0),
+  m.vec2(10, 0),
+  m.vec2(10, 10),
+  m.vec2(0, 10)
+);
+@include assert-equal("Square 10x10 Shoelace area", g.polygon-area($square), 100, 0.0001);
+@include assert-true("Square winding order is CCW", not g.polygon-is-clockwise($square));
+
+$centroid: g.polygon-centroid($square);
+@include assert-equal("Square centroid X", map.get($centroid, "x"), 5, 0.0001);
+@include assert-equal("Square centroid Y", map.get($centroid, "y"), 5, 0.0001);
+
+// Point in polygon
+@include assert-true("Point (5, 5) inside square", g.point-in-polygon(m.vec2(5, 5), $square));
+@include assert-true("Point (15, 5) outside square", not g.point-in-polygon(m.vec2(15, 5), $square));
+@include assert-true("Point (-2, 5) outside square", not g.point-in-polygon(m.vec2(-2, 5), $square));
+
+// 4. Convex Hull (Andrew's Monotone Chain)
+// Points of a square plus interior noisy points
+$cloud: (
+  m.vec2(0, 0),
+  m.vec2(10, 0),
+  m.vec2(10, 10),
+  m.vec2(0, 10),
+  m.vec2(5, 5),
+  m.vec2(3, 7),
+  m.vec2(6, 2)
+);
+$hull: g.convex-hull-2d($cloud);
+@include assert-equal("Convex hull vertex count", list.length($hull), 4, 0);
+
+// 5. Sutherland-Hodgman Polygon Clipping
+// Clip 10x10 square against bounding box [2, 2, 8, 8]
+$clipped: g.clip-polygon-bbox($square, 2, 2, 8, 8);
+@include assert-equal("Clipped polygon area", g.polygon-area($clipped), 36, 0.0001);
+
+// 6. Tissot Indicatrix
+$tissot: g.tissot-indices(1, 1, m.$HALF_PI);
+@include assert-equal("Conformal Tissot area scale", map.get($tissot, "area-scale"), 1, 0.0001);
+@include assert-equal("Conformal Tissot max angular deformation", map.get($tissot, "max-angular-deformation-deg"), 0, 0.0001);
+
+.geometry-tests-passed {
+  --status: "pass";
+  --total-asserts: 21;
+}

@@ -16,7 +16,7 @@
 
   // Cross product (B - A) x (P - A) >= 0 indicates inside or on boundary
   $cross: (($bx - $ax) * ($py - $ay)) - (($by - $ay) * ($px - $ax));
-  @return $cross >= -m.$EPSILON;
+  @return $cross >= -1 * m.$EPSILON;
 }
 
 /// Computes the intersection point between line segment P1-P2 and infinite edge line A-B.

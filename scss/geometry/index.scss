@@ -1,0 +1,9 @@
+// Graticule Computational Geometry and Geodesy Kernel
+// Comprehensive unified exports for all geometry modules.
+
+@forward "geodesy";
+@forward "simplification";
+@forward "clipping";
+@forward "convex_hull";
+@forward "polygon";
+@forward "tissot";
