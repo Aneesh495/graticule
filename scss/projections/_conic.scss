@@ -1,0 +1,248 @@
+// Graticule Cartographic Projections - Conic Family
+// Lambert Conformal Conic (LCC), Albers Equal-Area Conic, and Equidistant Conic
+// with dual standard parallels and arbitrary reference origins.
+
+@use "sass:math";
+@use "sass:map";
+@use "../math" as m;
+
+/// Forward Lambert Conformal Conic (LCC) projection with dual standard parallels.
+/// Standard projection for aeronautical sectional charts and mid-latitude continental maps.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $lat0 - Latitude of origin in degrees
+/// @param {Number} $lat1 - First standard parallel in degrees (default 33)
+/// @param {Number} $lat2 - Second standard parallel in degrees (default 45)
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-lambert-conformal-conic($lon, $lat, $lon0: 0, $lat0: 0, $lat1: 33, $lat2: 45) {
+  $phi: m.deg-to-rad($lat);
+  $phi0: m.deg-to-rad($lat0);
+  $phi1: m.deg-to-rad($lat1);
+  $phi2: m.deg-to-rad($lat2);
+  $lambda: m.deg-to-rad($lon - $lon0);
+
+  $cos-phi1: m.cos($phi1);
+  $cos-phi2: m.cos($phi2);
+  $t1: m.tan(m.$QUARTER_PI + 0.5 * $phi1);
+  $t2: m.tan(m.$QUARTER_PI + 0.5 * $phi2);
+  $t0: m.tan(m.$QUARTER_PI + 0.5 * $phi0);
+  $t: m.tan(m.$QUARTER_PI + 0.5 * m.clamp($phi, -1.56, 1.56));
+
+  $n: 0;
+  @if m.approx-equal($lat1, $lat2) {
+    $n: m.sin($phi1);
+  } @else {
+    $num: m.ln(math.div($cos-phi1, $cos-phi2));
+    $den: m.ln(math.div($t2, $t1));
+    $n: math.div($num, $den);
+  }
+
+  $F: math.div($cos-phi1 * m.pow($t1, $n), $n);
+  $rho0: math.div($F, m.pow($t0, $n));
+  $rho: math.div($F, m.pow($t, $n));
+
+  $theta: $n * $lambda;
+
+  $x: $rho * m.sin($theta);
+  $y: $rho0 - ($rho * m.cos($theta));
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Lambert Conformal Conic projection.
+@function invert-lambert-conformal-conic($p, $lon0: 0, $lat0: 0, $lat1: 33, $lat2: 45) {
+  $px: map.get($p, "x");
+  $py: map.get($p, "y");
+
+  $phi0: m.deg-to-rad($lat0);
+  $phi1: m.deg-to-rad($lat1);
+  $phi2: m.deg-to-rad($lat2);
+
+  $cos-phi1: m.cos($phi1);
+  $cos-phi2: m.cos($phi2);
+  $t1: m.tan(m.$QUARTER_PI + 0.5 * $phi1);
+  $t2: m.tan(m.$QUARTER_PI + 0.5 * $phi2);
+  $t0: m.tan(m.$QUARTER_PI + 0.5 * $phi0);
+
+  $n: 0;
+  @if m.approx-equal($lat1, $lat2) {
+    $n: m.sin($phi1);
+  } @else {
+    $num: m.ln(math.div($cos-phi1, $cos-phi2));
+    $den: m.ln(math.div($t2, $t1));
+    $n: math.div($num, $den);
+  }
+
+  $F: math.div($cos-phi1 * m.pow($t1, $n), $n);
+  $rho0: math.div($F, m.pow($t0, $n));
+
+  $sign-n: m.sign($n);
+  $dy: $rho0 - $py;
+  $rho: $sign-n * m.hypot($px, $dy);
+  $theta: m.atan2($sign-n * $px, $sign-n * $dy);
+
+  $lambda: $lon0 + m.rad-to-deg(math.div($theta, $n));
+
+  $ratio: math.div($F, $rho);
+  $t: m.pow(m.abs($ratio), math.div(1, $n));
+  $phi: 2 * m.atan($t) - m.$HALF_PI;
+
+  @return (
+    "lon": m.normalize-lon($lambda),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
+
+/// Forward Albers Equal-Area Conic projection.
+/// Preserves true area across middle latitudes with zero areal distortion along standard parallels.
+/// Standard projection for thematic mapping and census atlases.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $lat0 - Origin latitude in degrees
+/// @param {Number} $lat1 - First standard parallel in degrees (default 29.5)
+/// @param {Number} $lat2 - Second standard parallel in degrees (default 45.5)
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-albers($lon, $lat, $lon0: 0, $lat0: 0, $lat1: 29.5, $lat2: 45.5) {
+  $phi: m.deg-to-rad($lat);
+  $phi0: m.deg-to-rad($lat0);
+  $phi1: m.deg-to-rad($lat1);
+  $phi2: m.deg-to-rad($lat2);
+  $lambda: m.deg-to-rad($lon - $lon0);
+
+  $sin-phi1: m.sin($phi1);
+  $sin-phi2: m.sin($phi2);
+  $cos-phi1: m.cos($phi1);
+
+  $n: 0.5 * ($sin-phi1 + $sin-phi2);
+  @if m.abs($n) < m.$EPSILON {
+    $n: 0.00001;
+  }
+
+  $C: ($cos-phi1 * $cos-phi1) + (2 * $n * $sin-phi1);
+
+  $rad0: $C - (2 * $n * m.sin($phi0));
+  @if $rad0 < 0 { $rad0: 0; }
+  $rad: $C - (2 * $n * m.sin($phi));
+  @if $rad < 0 { $rad: 0; }
+
+  $rho0: math.div(m.sqrt($rad0), $n);
+  $rho: math.div(m.sqrt($rad), $n);
+
+  $theta: $n * $lambda;
+
+  $x: $rho * m.sin($theta);
+  $y: $rho0 - ($rho * m.cos($theta));
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Albers Equal-Area Conic projection.
+@function invert-albers($p, $lon0: 0, $lat0: 0, $lat1: 29.5, $lat2: 45.5) {
+  $px: map.get($p, "x");
+  $py: map.get($p, "y");
+
+  $phi0: m.deg-to-rad($lat0);
+  $phi1: m.deg-to-rad($lat1);
+  $phi2: m.deg-to-rad($lat2);
+
+  $sin-phi1: m.sin($phi1);
+  $sin-phi2: m.sin($phi2);
+  $cos-phi1: m.cos($phi1);
+
+  $n: 0.5 * ($sin-phi1 + $sin-phi2);
+  $C: ($cos-phi1 * $cos-phi1) + (2 * $n * $sin-phi1);
+  $rad0: $C - (2 * $n * m.sin($phi0));
+  @if $rad0 < 0 { $rad0: 0; }
+  $rho0: math.div(m.sqrt($rad0), $n);
+
+  $dy: $rho0 - $py;
+  $sign-n: m.sign($n);
+  $rho: $sign-n * m.hypot($px, $dy);
+  $theta: m.atan2($sign-n * $px, $sign-n * $dy);
+
+  $lambda: $lon0 + m.rad-to-deg(math.div($theta, $n));
+
+  $val: math.div($C - ($rho * $rho * $n * $n), 2 * $n);
+  $phi: m.asin(m.clamp($val, -1, 1));
+
+  @return (
+    "lon": m.normalize-lon($lambda),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
+
+/// Forward Equidistant Conic projection.
+/// Preserves true distance along all meridians.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $lat0 - Origin latitude in degrees
+/// @param {Number} $lat1 - First standard parallel in degrees (default 20)
+/// @param {Number} $lat2 - Second standard parallel in degrees (default 60)
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-equidistant-conic($lon, $lat, $lon0: 0, $lat0: 0, $lat1: 20, $lat2: 60) {
+  $phi: m.deg-to-rad($lat);
+  $phi0: m.deg-to-rad($lat0);
+  $phi1: m.deg-to-rad($lat1);
+  $phi2: m.deg-to-rad($lat2);
+  $lambda: m.deg-to-rad($lon - $lon0);
+
+  $cos-phi1: m.cos($phi1);
+  $cos-phi2: m.cos($phi2);
+
+  $n: 0;
+  @if m.approx-equal($lat1, $lat2) {
+    $n: m.sin($phi1);
+  } @else {
+    $n: math.div($cos-phi1 - $cos-phi2, $phi2 - $phi1);
+  }
+
+  $G: math.div($cos-phi1, $n) + $phi1;
+  $rho0: $G - $phi0;
+  $rho: $G - $phi;
+
+  $theta: $n * $lambda;
+
+  $x: $rho * m.sin($theta);
+  $y: $rho0 - ($rho * m.cos($theta));
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Equidistant Conic projection.
+@function invert-equidistant-conic($p, $lon0: 0, $lat0: 0, $lat1: 20, $lat2: 60) {
+  $px: map.get($p, "x");
+  $py: map.get($p, "y");
+
+  $phi0: m.deg-to-rad($lat0);
+  $phi1: m.deg-to-rad($lat1);
+  $phi2: m.deg-to-rad($lat2);
+
+  $cos-phi1: m.cos($phi1);
+  $cos-phi2: m.cos($phi2);
+
+  $n: 0;
+  @if m.approx-equal($lat1, $lat2) {
+    $n: m.sin($phi1);
+  } @else {
+    $n: math.div($cos-phi1 - $cos-phi2, $phi2 - $phi1);
+  }
+
+  $G: math.div($cos-phi1, $n) + $phi1;
+  $rho0: $G - $phi0;
+
+  $dy: $rho0 - $py;
+  $sign-n: m.sign($n);
+  $rho: $sign-n * m.hypot($px, $dy);
+  $theta: m.atan2($sign-n * $px, $sign-n * $dy);
+
+  $lambda: $lon0 + m.rad-to-deg(math.div($theta, $n));
+  $phi: $G - $rho;
+
+  @return (
+    "lon": m.normalize-lon($lambda),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
