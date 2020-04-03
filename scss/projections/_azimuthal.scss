@@ -1,0 +1,321 @@
+// Graticule Cartographic Projections - Azimuthal Family
+// Orthographic (3D globe), Stereographic (conformal), Azimuthal Equidistant (radar),
+// Gnomonic (geodesic straight-line), and Lambert Azimuthal Equal-Area.
+
+@use "sass:math";
+@use "sass:map";
+@use "../math" as m;
+
+/// Forward Orthographic projection.
+/// Projects the sphere onto a tangent plane as viewed from infinite space (3D globe view).
+/// Automatically determines horizon visibility (backface culling).
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $lat0 - Central latitude of projection in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y) with "visible" boolean flag
+@function project-orthographic($lon, $lat, $lon0: 0, $lat0: 0) {
+  $phi: m.deg-to-rad($lat);
+  $phi0: m.deg-to-rad($lat0);
+  $lambda: m.deg-to-rad($lon - $lon0);
+
+  $sin-phi: m.sin($phi);
+  $cos-phi: m.cos($phi);
+  $sin-phi0: m.sin($phi0);
+  $cos-phi0: m.cos($phi0);
+  $cos-lambda: m.cos($lambda);
+  $sin-lambda: m.sin($lambda);
+
+  // Angular distance from projection center (cos c)
+  $cos-c: ($sin-phi0 * $sin-phi) + ($cos-phi0 * $cos-phi * $cos-lambda);
+  $is-visible: $cos-c >= 0;
+
+  $x: $cos-phi * $sin-lambda;
+  $y: ($cos-phi0 * $sin-phi) - ($sin-phi0 * $cos-phi * $cos-lambda);
+
+  @return (
+    "x": $x,
+    "y": $y,
+    "visible": $is-visible,
+    "cos-c": $cos-c
+  );
+}
+
+/// Inverse Orthographic projection: converts visible disc coordinates back to (lon, lat).
+@function invert-orthographic($p, $lon0: 0, $lat0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+  $phi0: m.deg-to-rad($lat0);
+
+  $rho: m.hypot($x, $y);
+  @if $rho > 1 {
+    $rho: 1;
+  }
+
+  $c: m.asin($rho);
+  $sin-c: $rho;
+  $cos-c: m.cos($c);
+
+  $sin-phi0: m.sin($phi0);
+  $cos-phi0: m.cos($phi0);
+
+  $phi: 0;
+  $lambda: 0;
+
+  @if $rho < m.$EPSILON {
+    $phi: $phi0;
+    $lambda: 0;
+  } @else {
+    $sin-phi: ($cos-c * $sin-phi0) + math.div($y * $sin-c * $cos-phi0, $rho);
+    $phi: m.asin(m.clamp($sin-phi, -1, 1));
+
+    $denom: ($rho * $cos-phi0 * $cos-c) - ($y * $sin-phi0 * $sin-c);
+    $lambda: m.atan2($x * $sin-c, $denom);
+  }
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
+
+/// Forward Stereographic azimuthal conformal projection.
+/// True conformal azimuthal projection: all circles on the sphere map to circles on the plane.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $lat0 - Central latitude in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-stereographic($lon, $lat, $lon0: 0, $lat0: 0) {
+  $phi: m.deg-to-rad($lat);
+  $phi0: m.deg-to-rad($lat0);
+  $lambda: m.deg-to-rad($lon - $lon0);
+
+  $sin-phi: m.sin($phi);
+  $cos-phi: m.cos($phi);
+  $sin-phi0: m.sin($phi0);
+  $cos-phi0: m.cos($phi0);
+  $cos-lambda: m.cos($lambda);
+  $sin-lambda: m.sin($lambda);
+
+  $cos-c: ($sin-phi0 * $sin-phi) + ($cos-phi0 * $cos-phi * $cos-lambda);
+  $denom: 1 + $cos-c;
+  @if $denom < m.$EPSILON {
+    $denom: 0.00001;
+  }
+
+  $k: math.div(2, $denom);
+  $x: $k * $cos-phi * $sin-lambda;
+  $y: $k * (($cos-phi0 * $sin-phi) - ($sin-phi0 * $cos-phi * $cos-lambda));
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Stereographic projection.
+@function invert-stereographic($p, $lon0: 0, $lat0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+  $phi0: m.deg-to-rad($lat0);
+
+  $rho: m.hypot($x, $y);
+  $c: 2 * m.atan(0.5 * $rho);
+  $sin-c: m.sin($c);
+  $cos-c: m.cos($c);
+
+  $sin-phi0: m.sin($phi0);
+  $cos-phi0: m.cos($phi0);
+
+  $phi: 0;
+  $lambda: 0;
+
+  @if $rho < m.$EPSILON {
+    $phi: $phi0;
+    $lambda: 0;
+  } @else {
+    $sin-phi: ($cos-c * $sin-phi0) + math.div($y * $sin-c * $cos-phi0, $rho);
+    $phi: m.asin(m.clamp($sin-phi, -1, 1));
+
+    $denom: ($rho * $cos-phi0 * $cos-c) - ($y * $sin-phi0 * $sin-c);
+    $lambda: m.atan2($x * $sin-c, $denom);
+  }
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
+
+/// Forward Azimuthal Equidistant projection.
+/// Preserves true distance and true azimuth from the center point to any location on Earth.
+/// Standard for radar displays, seismic epicenter charting, and amateur radio beam headings.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $lat0 - Central latitude in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-azimuthal-equidistant($lon, $lat, $lon0: 0, $lat0: 0) {
+  $phi: m.deg-to-rad($lat);
+  $phi0: m.deg-to-rad($lat0);
+  $lambda: m.deg-to-rad($lon - $lon0);
+
+  $sin-phi: m.sin($phi);
+  $cos-phi: m.cos($phi);
+  $sin-phi0: m.sin($phi0);
+  $cos-phi0: m.cos($phi0);
+  $cos-lambda: m.cos($lambda);
+  $sin-lambda: m.sin($lambda);
+
+  $cos-c: m.clamp(($sin-phi0 * $sin-phi) + ($cos-phi0 * $cos-phi * $cos-lambda), -1, 1);
+  $c: m.acos($cos-c);
+
+  $k: 1;
+  $sin-c: m.sin($c);
+  @if m.abs($sin-c) > m.$EPSILON {
+    $k: math.div($c, $sin-c);
+  }
+
+  $x: $k * $cos-phi * $sin-lambda;
+  $y: $k * (($cos-phi0 * $sin-phi) - ($sin-phi0 * $cos-phi * $cos-lambda));
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Azimuthal Equidistant projection.
+@function invert-azimuthal-equidistant($p, $lon0: 0, $lat0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+  $phi0: m.deg-to-rad($lat0);
+
+  $c: m.hypot($x, $y);
+  @if $c > m.$PI {
+    $c: m.$PI;
+  }
+
+  $sin-c: m.sin($c);
+  $cos-c: m.cos($c);
+  $sin-phi0: m.sin($phi0);
+  $cos-phi0: m.cos($phi0);
+
+  $phi: 0;
+  $lambda: 0;
+
+  @if $c < m.$EPSILON {
+    $phi: $phi0;
+    $lambda: 0;
+  } @else {
+    $sin-phi: ($cos-c * $sin-phi0) + math.div($y * $sin-c * $cos-phi0, $c);
+    $phi: m.asin(m.clamp($sin-phi, -1, 1));
+
+    $denom: ($c * $cos-phi0 * $cos-c) - ($y * $sin-phi0 * $sin-c);
+    $lambda: m.atan2($x * $sin-c, $denom);
+  }
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
+
+/// Forward Gnomonic projection.
+/// Center of projection is the planetary center: all great circles map to straight Euclidean lines.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $lat0 - Central latitude in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-gnomonic($lon, $lat, $lon0: 0, $lat0: 0) {
+  $phi: m.deg-to-rad($lat);
+  $phi0: m.deg-to-rad($lat0);
+  $lambda: m.deg-to-rad($lon - $lon0);
+
+  $sin-phi: m.sin($phi);
+  $cos-phi: m.cos($phi);
+  $sin-phi0: m.sin($phi0);
+  $cos-phi0: m.cos($phi0);
+  $cos-lambda: m.cos($lambda);
+  $sin-lambda: m.sin($lambda);
+
+  $cos-c: ($sin-phi0 * $sin-phi) + ($cos-phi0 * $cos-phi * $cos-lambda);
+  @if $cos-c <= 0.05 {
+    // Point is beyond or near the visible horizon
+    $cos-c: 0.05;
+  }
+
+  $x: math.div($cos-phi * $sin-lambda, $cos-c);
+  $y: math.div(($cos-phi0 * $sin-phi) - ($sin-phi0 * $cos-phi * $cos-lambda), $cos-c);
+
+  @return m.vec2($x, $y);
+}
+
+/// Forward Lambert Azimuthal Equal-Area (LAEA) projection.
+/// Preserves relative areal proportions across entire hemispheres and global polar caps.
+/// Standard projection for continental-scale environmental and demographic mapping.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $lat0 - Central latitude in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-lambert-azimuthal-equal-area($lon, $lat, $lon0: 0, $lat0: 0) {
+  $phi: m.deg-to-rad($lat);
+  $phi0: m.deg-to-rad($lat0);
+  $lambda: m.deg-to-rad($lon - $lon0);
+
+  $sin-phi: m.sin($phi);
+  $cos-phi: m.cos($phi);
+  $sin-phi0: m.sin($phi0);
+  $cos-phi0: m.cos($phi0);
+  $cos-lambda: m.cos($lambda);
+  $sin-lambda: m.sin($lambda);
+
+  $cos-c: m.clamp(($sin-phi0 * $sin-phi) + ($cos-phi0 * $cos-phi * $cos-lambda), -1, 1);
+  $denom: 1 + $cos-c;
+  @if $denom < m.$EPSILON {
+    $denom: 0.00001;
+  }
+
+  $k: m.sqrt(math.div(2, $denom));
+
+  $x: $k * $cos-phi * $sin-lambda;
+  $y: $k * (($cos-phi0 * $sin-phi) - ($sin-phi0 * $cos-phi * $cos-lambda));
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Lambert Azimuthal Equal-Area projection.
+@function invert-lambert-azimuthal-equal-area($p, $lon0: 0, $lat0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+  $phi0: m.deg-to-rad($lat0);
+
+  $rho: m.hypot($x, $y);
+  @if $rho > 2 {
+    $rho: 2;
+  }
+
+  $sin-half-c: 0.5 * $rho;
+  $cos-half-c: m.sqrt(1 - ($sin-half-c * $sin-half-c));
+  $sin-c: 2 * $sin-half-c * $cos-half-c;
+  $cos-c: 1 - (2 * $sin-half-c * $sin-half-c);
+
+  $sin-phi0: m.sin($phi0);
+  $cos-phi0: m.cos($phi0);
+
+  $phi: 0;
+  $lambda: 0;
+
+  @if $rho < m.$EPSILON {
+    $phi: $phi0;
+    $lambda: 0;
+  } @else {
+    $sin-phi: ($cos-c * $sin-phi0) + math.div($y * $sin-c * $cos-phi0, $rho);
+    $phi: m.asin(m.clamp($sin-phi, -1, 1));
+
+    $denom: ($rho * $cos-phi0 * $cos-c) - ($y * $sin-phi0 * $sin-c);
+    $lambda: m.atan2($x * $sin-c, $denom);
+  }
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
