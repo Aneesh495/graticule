@@ -1,0 +1,225 @@
+// Graticule Cartographic Projections - Pseudocylindrical and Global Compromise
+// Robinson, Mollweide (Newton-Raphson), Sinusoidal, Natural Earth, and Winkel Tripel.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+// Robinson tabular interpolation coefficients at 5-degree increments from 0 to 90 degrees
+// Each entry represents (ratio of length of parallel to equator, distance of parallel from equator)
+$_ROBINSON_TABLE: (
+  (1.0000, 0.0000), // 0 deg
+  (0.9986, 0.0620), // 5 deg
+  (0.9954, 0.1240), // 10 deg
+  (0.9900, 0.1860), // 15 deg
+  (0.9822, 0.2480), // 20 deg
+  (0.9730, 0.3100), // 25 deg
+  (0.9600, 0.3720), // 30 deg
+  (0.9427, 0.4340), // 35 deg
+  (0.9216, 0.4958), // 40 deg
+  (0.8962, 0.5571), // 45 deg
+  (0.8679, 0.6176), // 50 deg
+  (0.8350, 0.6769), // 55 deg
+  (0.7986, 0.7346), // 60 deg
+  (0.7597, 0.7903), // 65 deg
+  (0.7186, 0.8435), // 70 deg
+  (0.6732, 0.8936), // 75 deg
+  (0.6213, 0.9394), // 80 deg
+  (0.5722, 0.9761), // 85 deg
+  (0.5322, 1.0000)  // 90 deg
+);
+
+/// Forward Robinson compromise projection.
+/// Interpolates standard cartographic tables developed by Arthur H. Robinson.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-robinson($lon, $lat, $lon0: 0) {
+  $clamped-lat: m.clamp($lat, -90, 90);
+  $abs-lat: m.abs($clamped-lat);
+  $sign-lat: m.sign($clamped-lat);
+  $lambda: m.deg-to-rad($lon - $lon0);
+
+  // Table lookup with linear interpolation between 5-degree brackets
+  $idx-float: math.div($abs-lat, 5);
+  $i: math.floor($idx-float);
+  $t: $idx-float - $i;
+
+  $idx1: $i + 1;
+  $idx2: $i + 2;
+  @if $idx2 > 19 {
+    $idx2: 19;
+  }
+
+  $row1: list.nth($_ROBINSON_TABLE, $idx1);
+  $row2: list.nth($_ROBINSON_TABLE, $idx2);
+
+  $x-len: m.lerp(list.nth($row1, 1), list.nth($row2, 1), $t);
+  $y-dist: m.lerp(list.nth($row1, 2), list.nth($row2, 2), $t);
+
+  // Constants 0.8487 and 1.3523 normalize the projection aspect ratio to ~1.97:1
+  $x: 0.8487 * $lambda * $x-len;
+  $y: 1.3523 * $sign-lat * $y-dist * m.$HALF_PI;
+
+  @return m.vec2($x, $y);
+}
+
+/// Forward Mollweide homalographic equal-area projection.
+/// Elliptic boundary with 2:1 aspect ratio.
+/// Solves 2*theta + sin(2*theta) = pi * sin(phi) via Newton-Raphson iteration.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-mollweide($lon, $lat, $lon0: 0) {
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad(m.clamp-lat($lat));
+
+  // Newton-Raphson solve for eccentric angle theta
+  $pi-sin-phi: m.$PI * m.sin($phi);
+  $theta: $phi; // Initial guess
+
+  @for $i from 1 through 12 {
+    $delta: math.div((2 * $theta) + m.sin(2 * $theta) - $pi-sin-phi, 2 + (2 * m.cos(2 * $theta)));
+    $theta: $theta - $delta;
+    @if m.abs($delta) < 0.0000000001 {
+      // Converged
+    }
+  }
+
+  $theta: 0.5 * $theta; // theta is half of 2*theta
+
+  $coeff-x: math.div(2 * m.$SQRT2, m.$PI);
+  $x: $coeff-x * $lambda * m.cos($theta);
+  $y: m.$SQRT2 * m.sin($theta);
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Mollweide equal-area projection.
+@function invert-mollweide($p, $lon0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+
+  $sin-theta: math.div($y, m.$SQRT2);
+  @if m.abs($sin-theta) > 1 {
+    $sin-theta: m.sign($sin-theta);
+  }
+  $theta: m.asin($sin-theta);
+  $cos-theta: m.cos($theta);
+
+  $lambda: 0;
+  @if m.abs($cos-theta) > m.$EPSILON {
+    $lambda: math.div(m.$PI * $x, 2 * m.$SQRT2 * $cos-theta);
+  }
+
+  $val: math.div((2 * $theta) + m.sin(2 * $theta), m.$PI);
+  $phi: m.asin(m.clamp($val, -1, 1));
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
+
+/// Forward Sinusoidal (Sanson-Flamsteed) equal-area projection.
+/// Parallels of latitude are horizontal lines of true length.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-sinusoidal($lon, $lat, $lon0: 0) {
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad($lat);
+
+  $x: $lambda * m.cos($phi);
+  $y: $phi;
+
+  @return m.vec2($x, $y);
+}
+
+/// Inverse Sinusoidal projection.
+@function invert-sinusoidal($p, $lon0: 0) {
+  $x: map.get($p, "x");
+  $y: map.get($p, "y");
+
+  $phi: $y;
+  $cos-phi: m.cos($phi);
+  $lambda: 0;
+  @if m.abs($cos-phi) > m.$EPSILON {
+    $lambda: math.div($x, $cos-phi);
+  }
+
+  @return (
+    "lon": m.normalize-lon(m.rad-to-deg($lambda) + $lon0),
+    "lat": m.clamp-lat(m.rad-to-deg($phi))
+  );
+}
+
+/// Forward Natural Earth compromise projection (Patterson-Jenny).
+/// Specifically optimized for world thematic and physical cartography.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-natural-earth($lon, $lat, $lon0: 0) {
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad(m.clamp-lat($lat));
+
+  $phi2: $phi * $phi;
+  $phi4: $phi2 * $phi2;
+  $phi6: $phi4 * $phi2;
+  $phi8: $phi4 * $phi4;
+
+  $l: 0.870700 - (0.131979 * $phi2) - (0.003978 * $phi4) + (0.001529 * $phi6) - (0.000043 * $phi8);
+  $d: 1.007226 + (0.015085 * $phi2) - (0.044475 * $phi4) + (0.028874 * $phi6) - (0.005916 * $phi8);
+
+  $x: $lambda * $l;
+  $y: $phi * $d;
+
+  @return m.vec2($x, $y);
+}
+
+/// Forward Winkel Tripel (Winkel III) projection.
+/// Arithmetic mean of Equirectangular (standard parallel arccos(2/pi)) and Aitoff projections.
+/// Official world map projection standard for the National Geographic Society.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $lon0 - Central meridian in degrees
+/// @param {Number} $standard-lat - Standard parallel in degrees (default 50.467 deg = arccos(2/pi))
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-winkel-tripel($lon, $lat, $lon0: 0, $standard-lat: 50.467) {
+  $lambda: m.deg-to-rad($lon - $lon0);
+  $phi: m.deg-to-rad($lat);
+
+  $cos-phi: m.cos($phi);
+  $sin-phi: m.sin($phi);
+  $cos-half-lambda: m.cos(0.5 * $lambda);
+  $sin-half-lambda: m.sin(0.5 * $lambda);
+
+  $cos-phi1: m.cos-deg($standard-lat);
+
+  // Equirectangular component
+  $x-equi: $lambda * $cos-phi1;
+  $y-equi: $phi;
+
+  // Aitoff component
+  $cos-c: m.clamp($cos-phi * $cos-half-lambda, -1, 1);
+  $alpha: m.acos($cos-c);
+
+  $sinc-alpha: m.sinc($alpha);
+  @if m.abs($sinc-alpha) < m.$EPSILON {
+    $sinc-alpha: 1;
+  }
+
+  $x-aitoff: math.div(2 * $cos-phi * $sin-half-lambda, $sinc-alpha);
+  $y-aitoff: math.div($sin-phi, $sinc-alpha);
+
+  // Arithmetic mean
+  $x: 0.5 * ($x-equi + $x-aitoff);
+  $y: 0.5 * ($y-equi + $y-aitoff);
+
+  @return m.vec2($x, $y);
+}
