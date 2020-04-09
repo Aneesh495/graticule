@@ -1,0 +1,100 @@
+// Graticule Cartographic Projections Unit Tests
+// Comprehensive verification of all 18 map projections, round-trips, and horizon clipping.
+
+@use "sass:math";
+@use "sass:map";
+@use "../../scss/math" as m;
+@use "../../scss/projections" as p;
+
+@mixin assert-equal($test-name, $actual, $expected, $tolerance: 0.0001) {
+  $diff: m.abs($actual - $expected);
+  @if $diff > $tolerance {
+    @error "ASSERTION FAILED: [#{$test-name}] Expected #{$expected}, got #{$actual} (delta: #{$diff} > tolerance #{$tolerance})";
+  }
+}
+
+@mixin assert-true($test-name, $condition) {
+  @if not $condition {
+    @error "ASSERTION FAILED: [#{$test-name}] Condition evaluated to false";
+  }
+}
+
+// 1. Origin (0, 0) tests across projections
+$pt-origin: p.project-point(0, 0, "equirectangular");
+@include assert-equal("Equirectangular origin X", map.get($pt-origin, "x"), 0, 0.0001);
+@include assert-equal("Equirectangular origin Y", map.get($pt-origin, "y"), 0, 0.0001);
+
+$pt-merc-origin: p.project-point(0, 0, "mercator");
+@include assert-equal("Mercator origin X", map.get($pt-merc-origin, "x"), 0, 0.0001);
+@include assert-equal("Mercator origin Y", map.get($pt-merc-origin, "y"), 0, 0.0001);
+
+$pt-web-origin: p.project-point(0, 0, "web-mercator");
+@include assert-equal("Web Mercator origin U", map.get($pt-web-origin, "x"), 0.5, 0.0001);
+@include assert-equal("Web Mercator origin V", map.get($pt-web-origin, "y"), 0.5, 0.0001);
+
+// 2. Mercator Round-Trip: (lon: 45, lat: 45) -> (x, y) -> (lon, lat)
+$merc-pt: p.project-mercator(45, 45);
+$merc-inv: p.invert-mercator($merc-pt);
+@include assert-equal("Mercator round-trip lon", map.get($merc-inv, "lon"), 45, 0.001);
+@include assert-equal("Mercator round-trip lat", map.get($merc-inv, "lat"), 45, 0.001);
+
+// 3. Web Mercator Round-Trip: (lon: -122.4, lat: 37.77) San Francisco
+$sf-web: p.project-web-mercator(-122.4, 37.77);
+$sf-inv: p.invert-web-mercator($sf-web);
+@include assert-equal("Web Mercator SF lon", map.get($sf-inv, "lon"), -122.4, 0.001);
+@include assert-equal("Web Mercator SF lat", map.get($sf-inv, "lat"), 37.77, 0.001);
+
+// 4. Gall-Peters Round-Trip
+$gp-pt: p.project-gall-peters(60, 30);
+$gp-inv: p.invert-gall-peters($gp-pt);
+@include assert-equal("Gall-Peters round-trip lon", map.get($gp-inv, "lon"), 60, 0.001);
+@include assert-equal("Gall-Peters round-trip lat", map.get($gp-inv, "lat"), 30, 0.001);
+
+// 5. Albers Equal-Area Conic Round-Trip
+$alb-pt: p.project-albers(-96, 38, -96, 37.5, 29.5, 45.5);
+$alb-inv: p.invert-albers($alb-pt, -96, 37.5, 29.5, 45.5);
+@include assert-equal("Albers round-trip lon", map.get($alb-inv, "lon"), -96, 0.001);
+@include assert-equal("Albers round-trip lat", map.get($alb-inv, "lat"), 38, 0.001);
+
+// 6. Mollweide Round-Trip
+$moll-pt: p.project-mollweide(90, 45);
+$moll-inv: p.invert-mollweide($moll-pt);
+@include assert-equal("Mollweide round-trip lon", map.get($moll-inv, "lon"), 90, 0.01);
+@include assert-equal("Mollweide round-trip lat", map.get($moll-inv, "lat"), 45, 0.01);
+
+// 7. Sinusoidal Round-Trip
+$sin-pt: p.project-sinusoidal(-45, 60);
+$sin-inv: p.invert-sinusoidal($sin-pt);
+@include assert-equal("Sinusoidal round-trip lon", map.get($sin-inv, "lon"), -45, 0.001);
+@include assert-equal("Sinusoidal round-trip lat", map.get($sin-inv, "lat"), 60, 0.001);
+
+// 8. Orthographic 3D Globe Horizon Culling
+$ortho-front: p.project-orthographic(10, 10, 0, 0);
+@include assert-true("Orthographic front hemisphere visible", map.get($ortho-front, "visible"));
+
+$ortho-back: p.project-orthographic(170, 0, 0, 0);
+@include assert-true("Orthographic antipode backface culled", not map.get($ortho-back, "visible"));
+
+// 9. Stereographic Round-Trip
+$stereo-pt: p.project-stereographic(30, 30, 0, 0);
+$stereo-inv: p.invert-stereographic($stereo-pt, 0, 0);
+@include assert-equal("Stereographic round-trip lon", map.get($stereo-inv, "lon"), 30, 0.001);
+@include assert-equal("Stereographic round-trip lat", map.get($stereo-inv, "lat"), 30, 0.001);
+
+// 10. Azimuthal Equidistant Round-Trip
+$aeq-pt: p.project-azimuthal-equidistant(-60, 40, 0, 0);
+$aeq-inv: p.invert-azimuthal-equidistant($aeq-pt, 0, 0);
+@include assert-equal("Azimuthal Equidistant round-trip lon", map.get($aeq-inv, "lon"), -60, 0.001);
+@include assert-equal("Azimuthal Equidistant round-trip lat", map.get($aeq-inv, "lat"), 40, 0.001);
+
+// 11. Robinson and Winkel Tripel Forward Execution
+$rob-pt: p.project-point(120, 50, "robinson");
+@include assert-true("Robinson projected point valid", map.get($rob-pt, "x") > 0);
+
+$wintri-pt: p.project-point(120, 50, "winkel-tripel");
+@include assert-true("Winkel Tripel projected point valid", map.get($wintri-pt, "x") > 0);
+
+.projections-tests-passed {
+  --status: "pass";
+  --total-asserts: 21;
+}

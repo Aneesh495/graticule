@@ -1,0 +1,272 @@
+// Graticule Cartographic Projections Registry
+// Unified projection dispatcher, property inspection, and aspect ratio metadata.
+
+@use "sass:math";
+@use "sass:map";
+@use "cylindrical" as cyl;
+@use "conic" as con;
+@use "azimuthal" as az;
+@use "pseudocylindrical" as pc;
+@use "../math" as m;
+
+/// Master registry of supported projection metadata.
+$_PROJECTION_METADATA: (
+  "equirectangular": (
+    "name": "Plate Carree (Equirectangular)",
+    "family": "cylindrical",
+    "aspect-ratio": 2.0,
+    "conformal": false,
+    "equal-area": false,
+    "compromise": true
+  ),
+  "mercator": (
+    "name": "Conformal Mercator",
+    "family": "cylindrical",
+    "aspect-ratio": 1.0,
+    "conformal": true,
+    "equal-area": false,
+    "compromise": false
+  ),
+  "web-mercator": (
+    "name": "Web Mercator (EPSG:3857)",
+    "family": "cylindrical",
+    "aspect-ratio": 1.0,
+    "conformal": true,
+    "equal-area": false,
+    "compromise": false
+  ),
+  "gall-peters": (
+    "name": "Gall-Peters Equal-Area",
+    "family": "cylindrical",
+    "aspect-ratio": 1.5708,
+    "conformal": false,
+    "equal-area": true,
+    "compromise": false
+  ),
+  "lambert-cylindrical": (
+    "name": "Lambert Cylindrical Equal-Area",
+    "family": "cylindrical",
+    "aspect-ratio": 3.1416,
+    "conformal": false,
+    "equal-area": true,
+    "compromise": false
+  ),
+  "miller": (
+    "name": "Miller Cylindrical",
+    "family": "cylindrical",
+    "aspect-ratio": 1.365,
+    "conformal": false,
+    "equal-area": false,
+    "compromise": true
+  ),
+  "transverse-mercator": (
+    "name": "Transverse Mercator",
+    "family": "cylindrical",
+    "aspect-ratio": 1.0,
+    "conformal": true,
+    "equal-area": false,
+    "compromise": false
+  ),
+  "lambert-conformal-conic": (
+    "name": "Lambert Conformal Conic",
+    "family": "conic",
+    "aspect-ratio": 1.4,
+    "conformal": true,
+    "equal-area": false,
+    "compromise": false
+  ),
+  "albers": (
+    "name": "Albers Equal-Area Conic",
+    "family": "conic",
+    "aspect-ratio": 1.4,
+    "conformal": false,
+    "equal-area": true,
+    "compromise": false
+  ),
+  "equidistant-conic": (
+    "name": "Equidistant Conic",
+    "family": "conic",
+    "aspect-ratio": 1.4,
+    "conformal": false,
+    "equal-area": false,
+    "compromise": true
+  ),
+  "orthographic": (
+    "name": "Orthographic (3D Globe)",
+    "family": "azimuthal",
+    "aspect-ratio": 1.0,
+    "conformal": false,
+    "equal-area": false,
+    "compromise": false
+  ),
+  "stereographic": (
+    "name": "Stereographic (Conformal Azimuthal)",
+    "family": "azimuthal",
+    "aspect-ratio": 1.0,
+    "conformal": true,
+    "equal-area": false,
+    "compromise": false
+  ),
+  "azimuthal-equidistant": (
+    "name": "Azimuthal Equidistant",
+    "family": "azimuthal",
+    "aspect-ratio": 1.0,
+    "conformal": false,
+    "equal-area": false,
+    "compromise": false
+  ),
+  "gnomonic": (
+    "name": "Gnomonic (Geodesic Straight Line)",
+    "family": "azimuthal",
+    "aspect-ratio": 1.0,
+    "conformal": false,
+    "equal-area": false,
+    "compromise": false
+  ),
+  "laea": (
+    "name": "Lambert Azimuthal Equal-Area",
+    "family": "azimuthal",
+    "aspect-ratio": 1.0,
+    "conformal": false,
+    "equal-area": true,
+    "compromise": false
+  ),
+  "robinson": (
+    "name": "Robinson",
+    "family": "pseudocylindrical",
+    "aspect-ratio": 1.9716,
+    "conformal": false,
+    "equal-area": false,
+    "compromise": true
+  ),
+  "mollweide": (
+    "name": "Mollweide Equal-Area",
+    "family": "pseudocylindrical",
+    "aspect-ratio": 2.0,
+    "conformal": false,
+    "equal-area": true,
+    "compromise": false
+  ),
+  "sinusoidal": (
+    "name": "Sinusoidal (Sanson-Flamsteed)",
+    "family": "pseudocylindrical",
+    "aspect-ratio": 2.0,
+    "conformal": false,
+    "equal-area": true,
+    "compromise": false
+  ),
+  "natural-earth": (
+    "name": "Natural Earth",
+    "family": "pseudocylindrical",
+    "aspect-ratio": 1.92,
+    "conformal": false,
+    "equal-area": false,
+    "compromise": true
+  ),
+  "winkel-tripel": (
+    "name": "Winkel Tripel (Winkel III)",
+    "family": "pseudocylindrical",
+    "aspect-ratio": 1.639,
+    "conformal": false,
+    "equal-area": false,
+    "compromise": true
+  )
+);
+
+/// Dispatches forward projection mapping for geographic coordinate (lon, lat) to Cartesian vec2 (x, y).
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $lat - Latitude in degrees
+/// @param {String} $projection - Projection name identifier
+/// @param {Map} $options - Optional parameters (lon0, lat0, lat1, lat2, standard-lat)
+/// @return {Map} Projected Cartesian point vec2 (x, y)
+@function project-point($lon, $lat, $projection: "equirectangular", $options: ()) {
+  $lon0: 0;
+  $lat0: 0;
+  $lat1: 33;
+  $lat2: 45;
+  $std-lat: 0;
+
+  @if map.has-key($options, "lon0") { $lon0: map.get($options, "lon0"); }
+  @if map.has-key($options, "lat0") { $lat0: map.get($options, "lat0"); }
+  @if map.has-key($options, "lat1") { $lat1: map.get($options, "lat1"); }
+  @if map.has-key($options, "lat2") { $lat2: map.get($options, "lat2"); }
+  @if map.has-key($options, "standard-lat") { $std-lat: map.get($options, "standard-lat"); }
+
+  @if $projection == "equirectangular" or $projection == "plate-carree" {
+    @return cyl.project-equirectangular($lon, $lat, $lon0, $std-lat);
+  }
+  @if $projection == "mercator" {
+    @return cyl.project-mercator($lon, $lat, $lon0);
+  }
+  @if $projection == "web-mercator" {
+    @return cyl.project-web-mercator($lon, $lat);
+  }
+  @if $projection == "gall-peters" {
+    @return cyl.project-gall-peters($lon, $lat, $lon0);
+  }
+  @if $projection == "lambert-cylindrical" {
+    @return cyl.project-lambert-cylindrical($lon, $lat, $lon0);
+  }
+  @if $projection == "miller" {
+    @return cyl.project-miller($lon, $lat, $lon0);
+  }
+  @if $projection == "transverse-mercator" {
+    @return cyl.project-transverse-mercator($lon, $lat, $lon0);
+  }
+  @if $projection == "lambert-conformal-conic" or $projection == "lcc" {
+    @return con.project-lambert-conformal-conic($lon, $lat, $lon0, $lat0, $lat1, $lat2);
+  }
+  @if $projection == "albers" {
+    @return con.project-albers($lon, $lat, $lon0, $lat0, $lat1, $lat2);
+  }
+  @if $projection == "equidistant-conic" {
+    @return con.project-equidistant-conic($lon, $lat, $lon0, $lat0, $lat1, $lat2);
+  }
+  @if $projection == "orthographic" {
+    @return az.project-orthographic($lon, $lat, $lon0, $lat0);
+  }
+  @if $projection == "stereographic" {
+    @return az.project-stereographic($lon, $lat, $lon0, $lat0);
+  }
+  @if $projection == "azimuthal-equidistant" {
+    @return az.project-azimuthal-equidistant($lon, $lat, $lon0, $lat0);
+  }
+  @if $projection == "gnomonic" {
+    @return az.project-gnomonic($lon, $lat, $lon0, $lat0);
+  }
+  @if $projection == "laea" or $projection == "lambert-azimuthal-equal-area" {
+    @return az.project-lambert-azimuthal-equal-area($lon, $lat, $lon0, $lat0);
+  }
+  @if $projection == "robinson" {
+    @return pc.project-robinson($lon, $lat, $lon0);
+  }
+  @if $projection == "mollweide" {
+    @return pc.project-mollweide($lon, $lat, $lon0);
+  }
+  @if $projection == "sinusoidal" {
+    @return pc.project-sinusoidal($lon, $lat, $lon0);
+  }
+  @if $projection == "natural-earth" {
+    @return pc.project-natural-earth($lon, $lat, $lon0);
+  }
+  @if $projection == "winkel-tripel" or $projection == "winkel-3" {
+    @return pc.project-winkel-tripel($lon, $lat, $lon0);
+  }
+
+  // Fallback to Plate Carree
+  @return cyl.project-equirectangular($lon, $lat, $lon0, $std-lat);
+}
+
+/// Retrieves metadata properties for a named projection.
+@function get-projection-meta($projection) {
+  @if map.has-key($_PROJECTION_METADATA, $projection) {
+    @return map.get($_PROJECTION_METADATA, $projection);
+  }
+  @return map.get($_PROJECTION_METADATA, "equirectangular");
+}
+
+/// Retrieves the nominal aspect ratio (width / height) for a named projection.
+@function get-projection-aspect-ratio($projection) {
+  $meta: get-projection-meta($projection);
+  @return map.get($meta, "aspect-ratio");
+}

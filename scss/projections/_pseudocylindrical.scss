@@ -89,8 +89,6 @@ $_ROBINSON_TABLE: (
     }
   }
 
-  $theta: 0.5 * $theta; // theta is half of 2*theta
-
   $coeff-x: math.div(2 * m.$SQRT2, m.$PI);
   $x: $coeff-x * $lambda * m.cos($theta);
   $y: m.$SQRT2 * m.sin($theta);
