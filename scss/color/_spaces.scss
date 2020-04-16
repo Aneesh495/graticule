@@ -1,0 +1,176 @@
+// Graticule Perceptual Colorimetry - Color Spaces
+// Bidirectional transformations between sRGB, Linear RGB, CIE 1931 XYZ,
+// CIELAB (L*a*b*), and CIELCh cylindrical polar representation.
+
+@use "sass:math";
+@use "sass:color";
+@use "sass:map";
+@use "../math" as m;
+
+// CIE Standard Illuminant D65 reference white point coordinates (2-degree observer)
+$_D65_XN: 0.95047;
+$_D65_YN: 1.00000;
+$_D65_ZN: 1.08883;
+
+/// Converts an sRGB component in [0, 1] to linear radiometric intensity.
+@function srgb-to-linear($c) {
+  $v: m.clamp($c, 0, 1);
+  @if $v <= 0.04045 {
+    @return math.div($v, 12.92);
+  }
+  @return m.pow(math.div($v + 0.055, 1.055), 2.4);
+}
+
+/// Converts a linear radiometric intensity in [0, 1] to gamma-encoded sRGB.
+@function linear-to-srgb($c) {
+  $v: m.clamp($c, 0, 1);
+  @if $v <= 0.0031308 {
+    @return 12.92 * $v;
+  }
+  @return (1.055 * m.pow($v, math.div(1, 2.4))) - 0.055;
+}
+
+/// Converts an sRGB color to CIE 1931 XYZ coordinates under D65 illuminant.
+/// @param {Color} $col - Sass color value
+/// @return {Map} XYZ map ("x", "y", "z")
+@function color-to-xyz($col) {
+  $r: srgb-to-linear(math.div(color.channel($col, "red", $space: rgb), 255));
+  $g: srgb-to-linear(math.div(color.channel($col, "green", $space: rgb), 255));
+  $b: srgb-to-linear(math.div(color.channel($col, "blue", $space: rgb), 255));
+
+  // sRGB to XYZ transformation matrix (D65)
+  $x: (0.4124564 * $r) + (0.3575761 * $g) + (0.1804375 * $b);
+  $y: (0.2126729 * $r) + (0.7151522 * $g) + (0.0721750 * $b);
+  $z: (0.0193339 * $r) + (0.1191920 * $g) + (0.9503041 * $b);
+
+  @return (
+    "x": $x,
+    "y": $y,
+    "z": $z
+  );
+}
+
+/// Converts CIE 1931 XYZ coordinates to a Sass sRGB color.
+@function xyz-to-color($xyz) {
+  $x: map.get($xyz, "x");
+  $y: map.get($xyz, "y");
+  $z: map.get($xyz, "z");
+
+  // XYZ to sRGB inverse matrix (D65)
+  $r-lin: (3.2404542 * $x) - (1.5371385 * $y) - (0.4985314 * $z);
+  $g-lin: (-0.9692660 * $x) + (1.8760108 * $y) + (0.0415560 * $z);
+  $b-lin: (0.0556434 * $x) - (0.2040259 * $y) + (1.0572252 * $z);
+
+  $r: math.round(linear-to-srgb($r-lin) * 255);
+  $g: math.round(linear-to-srgb($g-lin) * 255);
+  $b: math.round(linear-to-srgb($b-lin) * 255);
+
+  @return color.change(#000, $red: m.clamp($r, 0, 255), $green: m.clamp($g, 0, 255), $blue: m.clamp($b, 0, 255));
+}
+
+/// Helper function f(t) for CIELAB nonlinear compression.
+@function _lab-f($t) {
+  $delta: math.div(6, 29);
+  @if $t > ($delta * $delta * $delta) {
+    @return m.cbrt($t);
+  }
+  @return (math.div(1, 3 * $delta * $delta) * $t) + math.div(4, 29);
+}
+
+/// Helper function f_inv(t) for CIELAB expansion.
+@function _lab-f-inv($t) {
+  $delta: math.div(6, 29);
+  @if $t > $delta {
+    @return $t * $t * $t;
+  }
+  @return 3 * $delta * $delta * ($t - math.div(4, 29));
+}
+
+/// Converts an sRGB color to CIELAB (L*a*b*) coordinates.
+/// L* in [0, 100] (perceptual lightness), a* in [-128, 127] (green-red), b* in [-128, 127] (blue-yellow).
+/// @param {Color} $col - Sass color
+/// @return {Map} CIELAB map ("l", "a", "b")
+@function color-to-lab($col) {
+  $xyz: color-to-xyz($col);
+  $x-rel: math.div(map.get($xyz, "x"), $_D65_XN);
+  $y-rel: math.div(map.get($xyz, "y"), $_D65_YN);
+  $z-rel: math.div(map.get($xyz, "z"), $_D65_ZN);
+
+  $fx: _lab-f($x-rel);
+  $fy: _lab-f($y-rel);
+  $fz: _lab-f($z-rel);
+
+  $L: (116 * $fy) - 16;
+  $a: 500 * ($fx - $fy);
+  $b: 200 * ($fy - $fz);
+
+  @return (
+    "l": $L,
+    "a": $a,
+    "b": $b
+  );
+}
+
+/// Converts CIELAB (L*a*b*) coordinates back to a Sass sRGB color.
+@function lab-to-color($lab) {
+  $L: map.get($lab, "l");
+  $a: map.get($lab, "a");
+  $b: map.get($lab, "b");
+
+  $fy: math.div($L + 16, 116);
+  $fx: $fy + math.div($a, 500);
+  $fz: $fy - math.div($b, 200);
+
+  $x: $_D65_XN * _lab-f-inv($fx);
+  $y: $_D65_YN * _lab-f-inv($fy);
+  $z: $_D65_ZN * _lab-f-inv($fz);
+
+  @return xyz-to-color(("x": $x, "y": $y, "z": $z));
+}
+
+/// Converts CIELAB (L*a*b*) to cylindrical CIELCh (Lightness, Chroma, Hue in degrees).
+@function lab-to-lch($lab) {
+  $L: map.get($lab, "l");
+  $a: map.get($lab, "a");
+  $b: map.get($lab, "b");
+
+  $C: m.hypot($a, $b);
+  $h-rad: m.atan2($b, $a);
+  $h-deg: m.mod(m.rad-to-deg($h-rad) + 360, 360);
+
+  @return (
+    "l": $L,
+    "c": $C,
+    "h": $h-deg
+  );
+}
+
+/// Converts cylindrical CIELCh (L, C, h) to CIELAB (L*a*b*).
+@function lch-to-lab($lch) {
+  $L: map.get($lch, "l");
+  $C: map.get($lch, "c");
+  $h: map.get($lch, "h");
+
+  $h-rad: m.deg-to-rad($h);
+  $a: $C * m.cos($h-rad);
+  $b: $C * m.sin($h-rad);
+
+  @return (
+    "l": $L,
+    "a": $a,
+    "b": $b
+  );
+}
+
+/// Computes the Euclidean Delta-E color difference between two colors in CIELAB space.
+/// Delta-E < 1.0 is imperceptible to the human eye. Delta-E > 2.3 is a perceptible JND.
+@function delta-e-76($col1, $col2) {
+  $lab1: color-to-lab($col1);
+  $lab2: color-to-lab($col2);
+
+  $dl: map.get($lab1, "l") - map.get($lab2, "l");
+  $da: map.get($lab1, "a") - map.get($lab2, "a");
+  $db: map.get($lab1, "b") - map.get($lab2, "b");
+
+  @return m.sqrt(($dl * $dl) + ($da * $da) + ($db * $db));
+}
