@@ -1,0 +1,115 @@
+// Graticule Perceptual Colorimetry - OKLab and OKLCh
+// Ottosson's OKLab perceptual color model with superior hue linearity,
+// uniform perceptual lightness scaling, and smooth gradient interpolation.
+
+@use "sass:math";
+@use "sass:color";
+@use "sass:map";
+@use "../math" as m;
+@use "spaces" as s;
+
+/// Converts a Sass sRGB color to OKLab (L, a, b) coordinates.
+/// L in [0, 1] (perceptual lightness), a in [-0.4, 0.4] (green-red), b in [-0.4, 0.4] (blue-yellow).
+@function color-to-oklab($col) {
+  $r: s.srgb-to-linear(math.div(color.channel($col, "red", $space: rgb), 255));
+  $g: s.srgb-to-linear(math.div(color.channel($col, "green", $space: rgb), 255));
+  $b: s.srgb-to-linear(math.div(color.channel($col, "blue", $space: rgb), 255));
+
+  // Linear RGB to LMS cone response
+  $l: (0.4122214708 * $r) + (0.5363325363 * $g) + (0.0514459929 * $b);
+  $m-cone: (0.2119034982 * $r) + (0.6806995451 * $g) + (0.1073969566 * $b);
+  $s-cone: (0.0883024619 * $r) + (0.2817188376 * $g) + (0.6299787005 * $b);
+
+  // Non-linear cube root compression
+  $l-prime: m.cbrt($l);
+  $m-prime: m.cbrt($m-cone);
+  $s-prime: m.cbrt($s-cone);
+
+  // LMS to OKLab
+  $L: (0.2104542553 * $l-prime) + (0.7936177850 * $m-prime) - (0.0040720468 * $s-prime);
+  $a: (1.9779984951 * $l-prime) - (2.4285922050 * $m-prime) + (0.4505937099 * $s-prime);
+  $b-coord: (0.0259040371 * $l-prime) + (0.7827717662 * $m-prime) - (0.8086757660 * $s-prime);
+
+  @return (
+    "l": $L,
+    "a": $a,
+    "b": $b-coord
+  );
+}
+
+/// Converts OKLab (L, a, b) coordinates back to a Sass sRGB color.
+@function oklab-to-color($oklab) {
+  $L: map.get($oklab, "l");
+  $a: map.get($oklab, "a");
+  $b: map.get($oklab, "b");
+
+  // OKLab to non-linear LMS
+  $l-prime: $L + (0.3963377774 * $a) + (0.2158037573 * $b);
+  $m-prime: $L - (0.1055613458 * $a) - (0.0638541728 * $b);
+  $s-prime: $L - (0.0894841775 * $a) - (1.2914855480 * $b);
+
+  // Inverse cube root
+  $l: $l-prime * $l-prime * $l-prime;
+  $m-cone: $m-prime * $m-prime * $m-prime;
+  $s-cone: $s-prime * $s-prime * $s-prime;
+
+  // LMS to linear RGB
+  $r-lin: (4.0767416621 * $l) - (3.3077115913 * $m-cone) + (0.2309699292 * $s-cone);
+  $g-lin: (-1.2684380046 * $l) + (2.6097574011 * $m-cone) - (0.3413193965 * $s-cone);
+  $b-lin: (-0.0041960863 * $l) - (0.7034186147 * $m-cone) + (1.7076147010 * $s-cone);
+
+  $r: math.round(s.linear-to-srgb($r-lin) * 255);
+  $g: math.round(s.linear-to-srgb($g-lin) * 255);
+  $b-val: math.round(s.linear-to-srgb($b-lin) * 255);
+
+  @return color.change(#000, $red: m.clamp($r, 0, 255), $green: m.clamp($g, 0, 255), $blue: m.clamp($b-val, 0, 255));
+}
+
+/// Converts an sRGB color to cylindrical OKLCh (Lightness, Chroma, Hue in degrees).
+@function color-to-oklch($col) {
+  $oklab: color-to-oklab($col);
+  $L: map.get($oklab, "l");
+  $a: map.get($oklab, "a");
+  $b: map.get($oklab, "b");
+
+  $C: m.hypot($a, $b);
+  $h-rad: m.atan2($b, $a);
+  $h-deg: m.mod(m.rad-to-deg($h-rad) + 360, 360);
+
+  @return (
+    "l": $L,
+    "c": $C,
+    "h": $h-deg
+  );
+}
+
+/// Converts cylindrical OKLCh (L, C, h) to a Sass sRGB color.
+@function oklch-to-color($oklch) {
+  $L: map.get($oklch, "l");
+  $C: map.get($oklch, "c");
+  $h: map.get($oklch, "h");
+
+  $h-rad: m.deg-to-rad($h);
+  $a: $C * m.cos($h-rad);
+  $b: $C * m.sin($h-rad);
+
+  @return oklab-to-color(("l": $L, "a": $a, "b": $b));
+}
+
+/// Linearly interpolates between two colors in perceptually uniform OKLab space.
+/// Eliminates grey dead zones and blue-purple hue shifts found in sRGB mixing.
+/// @param {Color} $col1 - Starting color
+/// @param {Color} $col2 - Ending color
+/// @param {Number} $t - Interpolation parameter in [0, 1]
+/// @return {Color} Perceptually blended color
+@function oklab-lerp($col1, $col2, $t) {
+  $vt: m.clamp($t, 0, 1);
+  $lab1: color-to-oklab($col1);
+  $lab2: color-to-oklab($col2);
+
+  $l: m.lerp(map.get($lab1, "l"), map.get($lab2, "l"), $vt);
+  $a: m.lerp(map.get($lab1, "a"), map.get($lab2, "a"), $vt);
+  $b: m.lerp(map.get($lab1, "b"), map.get($lab2, "b"), $vt);
+
+  @return oklab-to-color(("l": $l, "a": $a, "b": $b));
+}
