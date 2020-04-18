@@ -1,0 +1,101 @@
+// Graticule Scientific Colormaps and Hypsometric Ramps
+// Perceptually uniform color ramps (Viridis, Plasma, Magma, Inferno, Cividis, Turbo),
+// Diverging Coolwarm, and specialized Bathymetric and Topographic elevation palettes.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "oklab" as o;
+
+/// Canonical stop colors for scientific and cartographic palettes.
+$_COLORMAP_DEFINITIONS: (
+  "viridis": (
+    #440154, #482878, #3e4a89, #31688e, #26828e, #1f9e89, #35b779, #6ece58, #b5de2b, #fde725
+  ),
+  "plasma": (
+    #0d0887, #46039f, #7201a8, #9c179e, #bd3786, #d8576b, #ed7953, #fb9f3a, #fdca26, #f0f921
+  ),
+  "magma": (
+    #000004, #180f3d, #440f76, #721f81, #9e2f7f, #cd4071, #f1605d, #fd9668, #feca8d, #fcfdbf
+  ),
+  "inferno": (
+    #000004, #1b0c41, #4a0c6b, #781c6d, #a52c60, #cf4446, #ed6925, #fb9b06, #f7d13d, #fcffa4
+  ),
+  "cividis": (
+    #00204d, #002e6c, #003c8c, #1a4b8f, #41598f, #666890, #887893, #a98895, #c99994, #ffea46
+  ),
+  "turbo": (
+    #30123b, #4662d8, #35abfb, #1ae4b6, #72fe5e, #c8ef34, #faba39, #f66d19, #cb2b04, #7a0403
+  ),
+  "coolwarm": (
+    #3b4cc0, #6788ee, #9abbff, #c9d7f0, #edd1c2, #f7a889, #e26952, #b40426
+  ),
+  "bathymetry": (
+    #03071e, #0a1931, #153e75, #1d6996, #2996a8, #38b698, #60d394, #aaf683
+  ),
+  "topography": (
+    #1b4d3e, #2d6a4f, #52b788, #95d5b2, #d8f3dc, #eed7a1, #d4a373, #a98467, #6c584c, #ffffff
+  )
+);
+
+/// Retrieves the raw list of stop colors for a named colormap.
+@function get-colormap-stops($name) {
+  @if map.has-key($_COLORMAP_DEFINITIONS, $name) {
+    @return map.get($_COLORMAP_DEFINITIONS, $name);
+  }
+  @return map.get($_COLORMAP_DEFINITIONS, "viridis");
+}
+
+/// Continuously samples a named colormap at parameter t in [0, 1].
+/// Uses OKLab perceptual color blending between neighboring discrete stops.
+/// Eliminates brightness dips and synthetic hue artifacts.
+/// @param {String} $name - Palette identifier
+/// @param {Number} $t - Continuous parameter in [0, 1]
+/// @return {Color} Perceptually interpolated color
+@function colormap-sample($name, $t) {
+  $vt: m.clamp($t, 0, 1);
+  $stops: get-colormap-stops($name);
+  $n: list.length($stops);
+
+  @if $n == 0 {
+    @return #000;
+  }
+  @if $n == 1 or $vt == 0 {
+    @return list.nth($stops, 1);
+  }
+  @if $vt == 1 {
+    @return list.nth($stops, $n);
+  }
+
+  // Calculate segment index
+  $scaled: $vt * ($n - 1);
+  $idx1: math.floor($scaled) + 1;
+  $idx2: $idx1 + 1;
+  @if $idx2 > $n {
+    $idx2: $n;
+  }
+
+  $local-t: $scaled - math.floor($scaled);
+
+  $col1: list.nth($stops, $idx1);
+  $col2: list.nth($stops, $idx2);
+
+  @return o.oklab-lerp($col1, $col2, $local-t);
+}
+
+/// Generates a CSS linear-gradient string for a named colormap with specified stop count.
+/// @param {String} $name - Colormap name
+/// @param {Number} $samples - Number of gradient samples (default 10)
+/// @param {String} $direction - Gradient direction (e.g. "to right")
+/// @return {String} CSS linear-gradient value
+@function colormap-css-gradient($name, $samples: 10, $direction: "to right") {
+  $stops-list: ();
+  @for $i from 0 through ($samples - 1) {
+    $t: math.div($i, $samples - 1);
+    $col: colormap-sample($name, $t);
+    $pct: math.round($t * 100) * 1%;
+    $stops-list: list.append($stops-list, #{$col} #{$pct}, "comma");
+  }
+  @return linear-gradient(unquote($direction), $stops-list);
+}
