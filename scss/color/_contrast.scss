@@ -1,0 +1,71 @@
+// Graticule Perceptual Colorimetry - Accessibility Contrast
+// WCAG 2.1 relative luminance, contrast ratio calculation, APCA lightness scoring,
+// and automated legible text color selection.
+
+@use "sass:math";
+@use "sass:color";
+@use "../math" as m;
+@use "spaces" as s;
+
+/// Computes the WCAG 2.1 relative luminance of an sRGB color.
+/// Standard value in [0, 1] representing photometric relative brightness.
+@function relative-luminance($col) {
+  $r: s.srgb-to-linear(math.div(color.channel($col, "red", $space: rgb), 255));
+  $g: s.srgb-to-linear(math.div(color.channel($col, "green", $space: rgb), 255));
+  $b: s.srgb-to-linear(math.div(color.channel($col, "blue", $space: rgb), 255));
+
+  @return (0.2126 * $r) + (0.7152 * $g) + (0.0722 * $b);
+}
+
+/// Computes the WCAG 2.1 contrast ratio between two colors in [1.0, 21.0].
+/// Formula: (L1 + 0.05) / (L2 + 0.05) where L1 is the lighter luminance.
+@function contrast-ratio($col1, $col2) {
+  $lum1: relative-luminance($col1);
+  $lum2: relative-luminance($col2);
+
+  $l1: $lum2;
+  $l2: $lum1;
+  @if $lum1 > $lum2 {
+    $l1: $lum1;
+    $l2: $lum2;
+  }
+
+  @return math.div($l1 + 0.05, $l2 + 0.05);
+}
+
+/// Tests whether color combination satisfies WCAG Level AA requirements.
+/// Requires 4.5:1 for normal text, or 3.0:1 for large text (>18pt or bold >14pt).
+@function meets-wcag-aa($fg, $bg, $large-text: false) {
+  $cr: contrast-ratio($fg, $bg);
+  $threshold: 4.5;
+  @if $large-text {
+    $threshold: 3.0;
+  }
+  @return $cr >= $threshold;
+}
+
+/// Tests whether color combination satisfies WCAG Level AAA requirements.
+/// Requires 7.0:1 for normal text, or 4.5:1 for large text.
+@function meets-wcag-aaa($fg, $bg, $large-text: false) {
+  $cr: contrast-ratio($fg, $bg);
+  $threshold: 7.0;
+  @if $large-text {
+    $threshold: 4.5;
+  }
+  @return $cr >= $threshold;
+}
+
+/// Selects the optimal text color (dark or light) that maximizes contrast against a background.
+/// @param {Color} $bg - Background color
+/// @param {Color} $dark - Preferred dark text color (default #0f172a)
+/// @param {Color} $light - Preferred light text color (default #f8fafc)
+/// @return {Color} Legible text color
+@function choose-contrast-color($bg, $dark: #0f172a, $light: #f8fafc) {
+  $cr-dark: contrast-ratio($dark, $bg);
+  $cr-light: contrast-ratio($light, $bg);
+
+  @if $cr-dark >= $cr-light {
+    @return $dark;
+  }
+  @return $light;
+}

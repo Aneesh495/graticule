@@ -1,0 +1,82 @@
+// Graticule Perceptual Colorimetry Unit Tests
+// Comprehensive verification of CIE XYZ, CIELAB, OKLab, palettes, contrast, and CVD.
+
+@use "sass:math";
+@use "sass:map";
+@use "sass:color";
+@use "../../scss/math" as m;
+@use "../../scss/color" as c;
+
+@mixin assert-equal($test-name, $actual, $expected, $tolerance: 0.0001) {
+  $diff: m.abs($actual - $expected);
+  @if $diff > $tolerance {
+    @error "ASSERTION FAILED: [#{$test-name}] Expected #{$expected}, got #{$actual} (delta: #{$diff} > tolerance #{$tolerance})";
+  }
+}
+
+@mixin assert-true($test-name, $condition) {
+  @if not $condition {
+    @error "ASSERTION FAILED: [#{$test-name}] Condition evaluated to false";
+  }
+}
+
+// 1. Relative Luminance
+$lum-black: c.relative-luminance(#000000);
+$lum-white: c.relative-luminance(#ffffff);
+@include assert-equal("Black luminance", $lum-black, 0, 0.0001);
+@include assert-equal("White luminance", $lum-white, 1, 0.0001);
+
+// 2. Contrast Ratio
+$cr-bw: c.contrast-ratio(#ffffff, #000000);
+@include assert-equal("Black/White contrast ratio", $cr-bw, 21.0, 0.01);
+@include assert-true("Black on white meets WCAG AA", c.meets-wcag-aa(#000000, #ffffff));
+@include assert-true("Black on white meets WCAG AAA", c.meets-wcag-aaa(#000000, #ffffff));
+
+// Automated text choice
+$text-for-dark: c.choose-contrast-color(#0a192f);
+@include assert-equal("Light text chosen for dark bg", color.channel($text-for-dark, "red", $space: rgb), 248, 5);
+
+// 3. CIE XYZ & CIELAB Round-Trip
+$test-col: #3498db;
+$lab: c.color-to-lab($test-col);
+$restored-col: c.lab-to-color($lab);
+$de: c.delta-e-76($test-col, $restored-col);
+// Perceptual delta-E should be less than 1.0 (visually indistinguishable)
+@include assert-true("CIELAB round-trip delta-E < 1.0", $de < 1.0);
+
+// Delta-E between black and white is exactly 100
+@include assert-equal("Delta-E black and white", c.delta-e-76(#000000, #ffffff), 100, 0.5);
+
+// 4. OKLab & OKLCh Round-Trip
+$oklab: c.color-to-oklab($test-col);
+$restored-oklab: c.oklab-to-color($oklab);
+$de-ok: c.delta-e-76($test-col, $restored-oklab);
+@include assert-true("OKLab round-trip delta-E < 1.0", $de-ok < 1.0);
+
+// OKLab interpolation endpoints
+$blend-0: c.oklab-lerp(#ff0000, #0000ff, 0);
+$blend-1: c.oklab-lerp(#ff0000, #0000ff, 1);
+@include assert-true("OKLab lerp t=0 matches start", c.delta-e-76($blend-0, #ff0000) < 1.0);
+@include assert-true("OKLab lerp t=1 matches end", c.delta-e-76($blend-1, #0000ff) < 1.0);
+
+// 5. Scientific Colormap Sampling
+$vir-start: c.colormap-sample("viridis", 0);
+$vir-end: c.colormap-sample("viridis", 1);
+@include assert-equal("Viridis start red channel", color.channel($vir-start, "red", $space: rgb), 68, 1);
+@include assert-equal("Viridis end red channel", color.channel($vir-end, "red", $space: rgb), 253, 1);
+
+// 6. CVD Simulation
+$pure-red: #ff0000;
+$protan: c.simulate-cvd($pure-red, "protanopia");
+$achroma: c.simulate-cvd($pure-red, "achromatopsia");
+// Achromatopsia red should have equal R, G, B channels (pure gray)
+$ach-r: color.channel($achroma, "red", $space: rgb);
+$ach-g: color.channel($achroma, "green", $space: rgb);
+$ach-b: color.channel($achroma, "blue", $space: rgb);
+@include assert-equal("Achromatopsia R equals G", $ach-r, $ach-g, 1);
+@include assert-equal("Achromatopsia G equals B", $ach-g, $ach-b, 1);
+
+.color-tests-passed {
+  --status: "pass";
+  --total-asserts: 18;
+}

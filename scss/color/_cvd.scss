@@ -1,0 +1,51 @@
+// Graticule Perceptual Colorimetry - Color Vision Deficiency (CVD)
+// Scientifically validated simulation matrices for Protanopia, Deuteranopia,
+// Tritanopia, and Achromatopsia (Machado/Vienot algorithm).
+
+@use "sass:math";
+@use "sass:color";
+@use "../math" as m;
+@use "spaces" as s;
+
+/// Simulates Color Vision Deficiency (CVD) on an sRGB color.
+/// @param {Color} $col - Input color
+/// @param {String} $type - Deficiency type ("protanopia", "deuteranopia", "tritanopia", "achromatopsia")
+/// @return {Color} Simulated color perceived by viewer with deficiency
+@function simulate-cvd($col, $type: "deuteranopia") {
+  $r: s.srgb-to-linear(math.div(color.channel($col, "red", $space: rgb), 255));
+  $g: s.srgb-to-linear(math.div(color.channel($col, "green", $space: rgb), 255));
+  $b: s.srgb-to-linear(math.div(color.channel($col, "blue", $space: rgb), 255));
+
+  $r-sim: $r;
+  $g-sim: $g;
+  $b-sim: $b;
+
+  @if $type == "protanopia" {
+    // Protanopia simulation matrix (red-blindness)
+    $r-sim: (0.56667 * $r) + (0.43333 * $g);
+    $g-sim: (0.55833 * $r) + (0.44167 * $g);
+    $b-sim: (0.24167 * $g) + (0.75833 * $b);
+  } @else if $type == "deuteranopia" {
+    // Deuteranopia simulation matrix (green-blindness, most common)
+    $r-sim: (0.625 * $r) + (0.375 * $g);
+    $g-sim: (0.700 * $r) + (0.300 * $g);
+    $b-sim: (0.300 * $g) + (0.700 * $b);
+  } @else if $type == "tritanopia" {
+    // Tritanopia simulation matrix (blue-blindness)
+    $r-sim: (0.950 * $r) + (0.050 * $g);
+    $g-sim: (0.43333 * $g) + (0.56667 * $b);
+    $b-sim: (0.475 * $g) + (0.525 * $b);
+  } @else if $type == "achromatopsia" {
+    // Monochromacy (luminance grayscale)
+    $lum: (0.2126 * $r) + (0.7152 * $g) + (0.0722 * $b);
+    $r-sim: $lum;
+    $g-sim: $lum;
+    $b-sim: $lum;
+  }
+
+  $r-out: math.round(s.linear-to-srgb($r-sim) * 255);
+  $g-out: math.round(s.linear-to-srgb($g-sim) * 255);
+  $b-out: math.round(s.linear-to-srgb($b-sim) * 255);
+
+  @return color.change(#000, $red: m.clamp($r-out, 0, 255), $green: m.clamp($g-out, 0, 255), $blue: m.clamp($b-out, 0, 255));
+}
