@@ -1,0 +1,55 @@
+// Graticule Scales - Continuous Linear Scale
+// Domain-to-range linear coordinate mapping, clamping, and inverse transformation.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Constructs a linear scale configuration map.
+/// @param {List} $domain - Input data bounds (min, max)
+/// @param {List} $range - Output visual bounds (min, max)
+/// @param {Boolean} $clamp - Whether to restrict output within range
+/// @return {Map} Scale configuration
+@function scale-linear($domain: (0, 1), $range: (0, 1), $clamp: false) {
+  @return (
+    "type": "linear",
+    "domain-min": list.nth($domain, 1),
+    "domain-max": list.nth($domain, 2),
+    "range-min": list.nth($range, 1),
+    "range-max": list.nth($range, 2),
+    "clamp": $clamp
+  );
+}
+
+/// Applies a linear scale to an input domain value.
+/// @param {Map} $scale - Scale configuration map
+/// @param {Number} $val - Input data value
+/// @return {Number} Output mapped value in range
+@function scale-apply($scale, $val) {
+  $d-min: map.get($scale, "domain-min");
+  $d-max: map.get($scale, "domain-max");
+  $r-min: map.get($scale, "range-min");
+  $r-max: map.get($scale, "range-max");
+  $clamp-enabled: map.get($scale, "clamp");
+
+  $v: $val;
+  @if $clamp-enabled {
+    $v: m.clamp($val, $d-min, $d-max);
+  }
+
+  @return m.map-range($v, $d-min, $d-max, $r-min, $r-max);
+}
+
+/// Inverts a visual range coordinate back to original data domain value.
+/// @param {Map} $scale - Scale configuration map
+/// @param {Number} $val - Visual range coordinate
+/// @return {Number} Data domain value
+@function scale-invert($scale, $val) {
+  $d-min: map.get($scale, "domain-min");
+  $d-max: map.get($scale, "domain-max");
+  $r-min: map.get($scale, "range-min");
+  $r-max: map.get($scale, "range-max");
+
+  @return m.map-range($val, $r-min, $r-max, $d-min, $d-max);
+}

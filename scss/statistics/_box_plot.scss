@@ -1,0 +1,67 @@
+// Graticule Statistical Classification - Tukey Five-Number Summary and Box Plots
+// Quartile fences, whisker endpoints, and outlier identification.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "jenks" as j;
+@use "quantiles" as q;
+
+/// Computes John W. Tukey's five-number summary and box-plot fences.
+/// Identifies mild and extreme outliers.
+/// @param {List} $data - Array of numeric observations
+/// @return {Map} Complete summary ("min", "q1", "median", "q3", "max", "iqr", "whisker-low", "whisker-high", "outliers")
+@function five-number-summary($data) {
+  $sorted: j.sort-scalars($data);
+  $n: list.length($sorted);
+  @if $n == 0 {
+    @return ();
+  }
+
+  $min: list.nth($sorted, 1);
+  $max: list.nth($sorted, $n);
+
+  $quarts: q.quartiles($sorted);
+  $q1: map.get($quarts, "q1");
+  $med: map.get($quarts, "median");
+  $q3: map.get($quarts, "q3");
+  $iqr: map.get($quarts, "iqr");
+
+  // Tukey fences (1.5 * IQR)
+  $fence-low: $q1 - (1.5 * $iqr);
+  $fence-high: $q3 + (1.5 * $iqr);
+
+  // Whisker bounds are the most extreme data points within the fences
+  $whisker-low: $q1;
+  $whisker-high: $q3;
+  $outliers: ();
+
+  @for $i from 1 through $n {
+    $v: list.nth($sorted, $i);
+    @if $v < $fence-low or $v > $fence-high {
+      $outliers: list.append($outliers, $v);
+    } @else {
+      @if $v < $whisker-low {
+        $whisker-low: $v;
+      }
+      @if $v > $whisker-high {
+        $whisker-high: $v;
+      }
+    }
+  }
+
+  @return (
+    "min": $min,
+    "q1": $q1,
+    "median": $med,
+    "q3": $q3,
+    "max": $max,
+    "iqr": $iqr,
+    "fence-low": $fence-low,
+    "fence-high": $fence-high,
+    "whisker-low": $whisker-low,
+    "whisker-high": $whisker-high,
+    "outliers": $outliers
+  );
+}

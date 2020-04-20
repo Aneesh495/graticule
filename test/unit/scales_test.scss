@@ -1,0 +1,53 @@
+// Graticule Scales Unit Tests
+// Verification of linear, logarithmic, power, and Talbot-Lin-Hanrahan nice-ticks.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../../scss/math" as m;
+@use "../../scss/scales" as s;
+
+@mixin assert-equal($test-name, $actual, $expected, $tolerance: 0.0001) {
+  $diff: m.abs($actual - $expected);
+  @if $diff > $tolerance {
+    @error "ASSERTION FAILED: [#{$test-name}] Expected #{$expected}, got #{$actual} (delta: #{$diff} > tolerance #{$tolerance})";
+  }
+}
+
+@mixin assert-true($test-name, $condition) {
+  @if not $condition {
+    @error "ASSERTION FAILED: [#{$test-name}] Condition evaluated to false";
+  }
+}
+
+// 1. Linear Scale
+$lin: s.scale-linear((0, 100), (0, 1000), false);
+@include assert-equal("Linear scale apply 50", s.scale-apply($lin, 50), 500, 0.0001);
+@include assert-equal("Linear scale invert 500", s.scale-invert($lin, 500), 50, 0.0001);
+
+$lin-clamp: s.scale-linear((0, 100), (0, 1000), true);
+@include assert-equal("Linear scale clamp upper", s.scale-apply($lin-clamp, 150), 1000, 0.0001);
+@include assert-equal("Linear scale clamp lower", s.scale-apply($lin-clamp, -50), 0, 0.0001);
+
+// 2. Logarithmic Scale
+$log: s.scale-logarithmic((1, 100), (0, 1), 10);
+@include assert-equal("Log scale apply 10 (midpoint in log10)", s.scale-log-apply($log, 10), 0.5, 0.0001);
+@include assert-equal("Log scale invert 0.5", s.scale-log-invert($log, 0.5), 10, 0.001);
+
+// 3. Power Scale (Square root exponent 0.5)
+$pow: s.scale-power((0, 100), (0, 10), 0.5);
+@include assert-equal("Sqrt scale apply 25", s.scale-power-apply($pow, 25), 5, 0.0001);
+@include assert-equal("Sqrt scale invert 5", s.scale-power-invert($pow, 5), 25, 0.001);
+
+// 4. Talbot-Lin-Hanrahan Nice Ticks
+$ticks-info: s.nice-ticks(3.2, 98.7, 5);
+@include assert-true("Nice ticks min <= 3.2", map.get($ticks-info, "min") <= 3.2);
+@include assert-true("Nice ticks max >= 98.7", map.get($ticks-info, "max") >= 98.7);
+$step: map.get($ticks-info, "step");
+// Step should be a clean round number like 20 or 25
+@include assert-equal("Nice tick step is clean 20", $step, 20, 0.0001);
+
+.scales-tests-passed {
+  --status: "pass";
+  --total-asserts: 10;
+}

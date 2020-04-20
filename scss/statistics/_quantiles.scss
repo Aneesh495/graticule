@@ -1,0 +1,70 @@
+// Graticule Statistical Classification - Quantiles and Ranking
+// Continuous sample quantiles, medians, percentiles, and quartile partitions.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "jenks" as j;
+
+/// Computes the p-th quantile of sorted numerical data using linear interpolation.
+/// Standard R Type-7 / NumPy default quantile estimator.
+/// @param {List} $sorted - Pre-sorted list of numbers
+/// @param {Number} $p - Probability in [0, 1]
+/// @return {Number} Quantile value
+@function quantile-sorted($sorted, $p) {
+  $vp: m.clamp($p, 0, 1);
+  $n: list.length($sorted);
+
+  @if $n == 0 { @return 0; }
+  @if $n == 1 or $vp == 0 { @return list.nth($sorted, 1); }
+  @if $vp == 1 { @return list.nth($sorted, $n); }
+
+  $index: $vp * ($n - 1) + 1;
+  $i: math.floor($index);
+  $fraction: $index - $i;
+
+  $val1: list.nth($sorted, $i);
+  $val2: list.nth($sorted, $i + 1);
+
+  @return $val1 + ($fraction * ($val2 - $val1));
+}
+
+/// Computes the median (50th percentile) of a numeric dataset.
+@function median($data) {
+  $sorted: j.sort-scalars($data);
+  @return quantile-sorted($sorted, 0.5);
+}
+
+/// Computes the first, second, and third quartiles (Q1, Median, Q3).
+/// @param {List} $data - Numeric data list
+/// @return {Map} Quartiles map ("q1", "median", "q3", "iqr")
+@function quartiles($data) {
+  $sorted: j.sort-scalars($data);
+  $q1: quantile-sorted($sorted, 0.25);
+  $med: quantile-sorted($sorted, 0.5);
+  $q3: quantile-sorted($sorted, 0.75);
+  $iqr: $q3 - $q1;
+
+  @return (
+    "q1": $q1,
+    "median": $med,
+    "q3": $q3,
+    "iqr": $iqr
+  );
+}
+
+/// Partitions numeric dataset into k quantile classes (e.g. 4 for quartiles, 5 for quintiles).
+/// @param {List} $data - Numeric data list
+/// @param {Number} $k - Number of bins
+/// @return {List} List of k+1 boundary values
+@function quantile-breaks($data, $k: 4) {
+  $sorted: j.sort-scalars($data);
+  $breaks: ();
+  @for $i from 0 through $k {
+    $p: math.div($i, $k);
+    $q: quantile-sorted($sorted, $p);
+    $breaks: list.append($breaks, $q);
+  }
+  @return $breaks;
+}

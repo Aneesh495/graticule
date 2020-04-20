@@ -1,0 +1,60 @@
+// Graticule Statistics Unit Tests
+// Verification of Fisher-Jenks Natural Breaks, Quantiles, Tukey Box Plots, and KDE.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../../scss/math" as m;
+@use "../../scss/statistics" as st;
+
+@mixin assert-equal($test-name, $actual, $expected, $tolerance: 0.0001) {
+  $diff: m.abs($actual - $expected);
+  @if $diff > $tolerance {
+    @error "ASSERTION FAILED: [#{$test-name}] Expected #{$expected}, got #{$actual} (delta: #{$diff} > tolerance #{$tolerance})";
+  }
+}
+
+@mixin assert-true($test-name, $condition) {
+  @if not $condition {
+    @error "ASSERTION FAILED: [#{$test-name}] Condition evaluated to false";
+  }
+}
+
+// 1. Fisher-Jenks Natural Breaks
+// Synthetic bimodal distribution: small cluster [1, 2, 3] and large cluster [100, 101, 102]
+$cluster-data: (1, 2, 3, 100, 101, 102);
+$jenks: st.jenks-breaks($cluster-data, 2);
+@include assert-equal("Jenks breaks length for k=2", list.length($jenks), 3, 0);
+@include assert-equal("Jenks min break", list.nth($jenks, 1), 1, 0.0001);
+@include assert-equal("Jenks split break", list.nth($jenks, 2), 3, 0.0001);
+@include assert-equal("Jenks max break", list.nth($jenks, 3), 102, 0.0001);
+
+// 2. Quantiles and Medians
+$even-data: (10, 20, 30, 40);
+@include assert-equal("Median of even array", st.median($even-data), 25, 0.0001);
+
+$quarts: st.quartiles($even-data);
+@include assert-equal("Q1 of even array", map.get($quarts, "q1"), 17.5, 0.0001);
+@include assert-equal("Q3 of even array", map.get($quarts, "q3"), 32.5, 0.0001);
+@include assert-equal("IQR of even array", map.get($quarts, "iqr"), 15, 0.0001);
+
+// 3. Tukey Five-Number Summary and Outlier Detection
+$outlier-data: (10, 11, 12, 13, 14, 15, 100);
+$summary: st.five-number-summary($outlier-data);
+@include assert-equal("Summary min", map.get($summary, "min"), 10, 0.0001);
+@include assert-equal("Summary median", map.get($summary, "median"), 13, 0.0001);
+$outliers: map.get($summary, "outliers");
+@include assert-equal("Outlier count", list.length($outliers), 1, 0);
+@include assert-equal("Detected outlier value", list.nth($outliers, 1), 100, 0.0001);
+
+// 4. Kernel Density Estimation (KDE)
+$sample-data: (0, 0, 0, 1, 1, 2);
+$kde-val-center: st.kde-eval($sample-data, 0, 0.5, "gaussian");
+$kde-val-tail: st.kde-eval($sample-data, 10, 0.5, "gaussian");
+@include assert-true("KDE peak at mode > tail", $kde-val-center > $kde-val-tail);
+@include assert-true("KDE probability density is strictly positive", $kde-val-center > 0);
+
+.statistics-tests-passed {
+  --status: "pass";
+  --total-asserts: 13;
+}

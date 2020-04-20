@@ -1,0 +1,62 @@
+// Graticule Scales - Continuous Logarithmic Scale
+// Logarithmic coordinate mapping with custom base and positive domain handling.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Constructs a logarithmic scale configuration.
+/// Domain values must be strictly positive.
+/// @param {List} $domain - Positive domain bounds (min, max)
+/// @param {List} $range - Output visual bounds (min, max)
+/// @param {Number} $base - Logarithm base (default 10)
+/// @return {Map} Scale configuration
+@function scale-logarithmic($domain: (1, 100), $range: (0, 1), $base: 10) {
+  $d-min: list.nth($domain, 1);
+  $d-max: list.nth($domain, 2);
+  @if $d-min <= 0 or $d-max <= 0 {
+    @error "Logarithmic scale domain must be strictly positive: (#{$d-min}, #{$d-max})";
+  }
+
+  $ln-base: m.ln($base);
+  $log-min: math.div(m.ln($d-min), $ln-base);
+  $log-max: math.div(m.ln($d-max), $ln-base);
+
+  @return (
+    "type": "logarithmic",
+    "domain-min": $d-min,
+    "domain-max": $d-max,
+    "log-min": $log-min,
+    "log-max": $log-max,
+    "range-min": list.nth($range, 1),
+    "range-max": list.nth($range, 2),
+    "base": $base,
+    "ln-base": $ln-base
+  );
+}
+
+/// Applies a logarithmic scale to an input data value.
+@function scale-log-apply($scale, $val) {
+  @if $val <= 0 {
+    @return map.get($scale, "range-min");
+  }
+  $log-v: math.div(m.ln($val), map.get($scale, "ln-base"));
+  $log-min: map.get($scale, "log-min");
+  $log-max: map.get($scale, "log-max");
+  $r-min: map.get($scale, "range-min");
+  $r-max: map.get($scale, "range-max");
+
+  @return m.map-range($log-v, $log-min, $log-max, $r-min, $r-max);
+}
+
+/// Inverts a visual coordinate back to logarithmic data domain.
+@function scale-log-invert($scale, $val) {
+  $log-min: map.get($scale, "log-min");
+  $log-max: map.get($scale, "log-max");
+  $r-min: map.get($scale, "range-min");
+  $r-max: map.get($scale, "range-max");
+
+  $log-v: m.map-range($val, $r-min, $r-max, $log-min, $log-max);
+  @return m.pow(map.get($scale, "base"), $log-v);
+}

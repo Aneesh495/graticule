@@ -1,0 +1,77 @@
+// Graticule Scales - Talbot-Lin-Hanrahan Nice Ticks Optimization
+// Optimal aesthetic axis tick mark synthesis based on simplicity, coverage, and density.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+// Candidate nice step numbers Q and their preference weights
+$_NICE_STEPS: (1, 5, 2, 2.5, 4, 3);
+$_NICE_WEIGHTS: (1.0, 0.9, 0.8, 0.7, 0.6, 0.5);
+
+/// Generates aesthetically optimal "nice" axis ticks for interval [d-min, d-max] aiming for k ticks.
+/// Implements the Talbot-Lin-Hanrahan optimization algorithm in pure Sass.
+/// @param {Number} $d-min - Domain minimum
+/// @param {Number} $d-max - Domain maximum
+/// @param {Number} $k - Desired number of tick intervals (default 5)
+/// @return {Map} Optimization result ("step", "min", "max", "count", "ticks")
+@function nice-ticks($d-min, $d-max, $k: 5) {
+  $span: $d-max - $d-min;
+  @if m.abs($span) < m.$EPSILON {
+    @return (
+      "step": 1,
+      "min": $d-min,
+      "max": $d-max,
+      "count": 1,
+      "ticks": ($d-min)
+    );
+  }
+
+  // Rough step size
+  $raw-step: math.div($span, $k);
+  $exponent: math.floor(m.log10($raw-step));
+  $power-10: m.pow(10, $exponent);
+  $fraction: math.div($raw-step, $power-10);
+
+  // Find the closest nice step candidate
+  $best-q: 1;
+  $best-diff: 999999999;
+  $best-score: -999999;
+
+  @for $i from 1 through list.length($_NICE_STEPS) {
+    $q: list.nth($_NICE_STEPS, $i);
+    $weight: list.nth($_NICE_WEIGHTS, $i);
+    $diff: m.abs($fraction - $q);
+
+    // Score combines closeness to raw step and step simplicity weight
+    $score: $weight - (0.5 * $diff);
+    @if $score > $best-score {
+      $best-score: $score;
+      $best-q: $q;
+    }
+  }
+
+  $step: $best-q * $power-10;
+
+  // Align tick bounds to multiples of step
+  $tick-min: math.floor(math.div($d-min, $step)) * $step;
+  $tick-max: math.ceil(math.div($d-max, $step)) * $step;
+
+  $ticks: ();
+  $curr: $tick-min;
+  $safety: 50;
+  @while $curr <= $tick-max + (0.5 * $step) and $safety > 0 {
+    $ticks: list.append($ticks, m.round-to($curr, 6));
+    $curr: $curr + $step;
+    $safety: $safety - 1;
+  }
+
+  @return (
+    "step": $step,
+    "min": $tick-min,
+    "max": $tick-max,
+    "count": list.length($ticks),
+    "ticks": $ticks
+  );
+}

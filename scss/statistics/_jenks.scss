@@ -1,0 +1,152 @@
+// Graticule Statistical Classification - Fisher-Jenks Natural Breaks
+// Dynamic programming optimization for variance-minimizing choropleth classification.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Simple numeric sorting for scalar data arrays.
+@function sort-scalars($arr) {
+  $len: list.length($arr);
+  @if $len <= 1 {
+    @return $arr;
+  }
+
+  $mid: math.floor(math.div($len, 2));
+  $left: ();
+  $right: ();
+
+  @for $i from 1 through $mid {
+    $left: list.append($left, list.nth($arr, $i));
+  }
+  @for $i from ($mid + 1) through $len {
+    $right: list.append($right, list.nth($arr, $i));
+  }
+
+  $sorted-left: sort-scalars($left);
+  $sorted-right: sort-scalars($right);
+
+  $merged: ();
+  $i-l: 1; $len-l: list.length($sorted-left);
+  $i-r: 1; $len-r: list.length($sorted-right);
+
+  @while $i-l <= $len-l and $i-r <= $len-r {
+    $vl: list.nth($sorted-left, $i-l);
+    $vr: list.nth($sorted-right, $i-r);
+    @if $vl <= $vr {
+      $merged: list.append($merged, $vl);
+      $i-l: $i-l + 1;
+    } @else {
+      $merged: list.append($merged, $vr);
+      $i-r: $i-r + 1;
+    }
+  }
+
+  @while $i-l <= $len-l {
+    $merged: list.append($merged, list.nth($sorted-left, $i-l));
+    $i-l: $i-l + 1;
+  }
+  @while $i-r <= $len-r {
+    $merged: list.append($merged, list.nth($sorted-right, $i-r));
+    $i-r: $i-r + 1;
+  }
+
+  @return $merged;
+}
+
+/// Fisher-Jenks Natural Breaks classification algorithm.
+/// Optimal statistical partitioning that minimizes within-class variance
+/// and maximizes between-class differences for thematic choropleth maps.
+/// @param {List} $data - Array of real numeric values
+/// @param {Number} $k - Number of classes (typically 3 to 7)
+/// @return {List} List of k+1 class boundary break values
+@function jenks-breaks($data, $k: 5) {
+  $sorted: sort-scalars($data);
+  $n: list.length($sorted);
+
+  @if $n <= $k {
+    @return $sorted;
+  }
+
+  // Precompute sum and sum of squares for O(1) interval variance queries
+  // variance of interval [i, j] = sum_sq - (sum^2) / count
+  $cum-sum: (0);
+  $cum-sq: (0);
+
+  $running-sum: 0;
+  $running-sq: 0;
+
+  @for $i from 1 through $n {
+    $val: list.nth($sorted, $i);
+    $running-sum: $running-sum + $val;
+    $running-sq: $running-sq + ($val * $val);
+    $cum-sum: list.append($cum-sum, $running-sum);
+    $cum-sq: list.append($cum-sq, $running-sq);
+  }
+
+  // Dynamic programming: dp[i][c] is min variance for first i elements partitioned into c classes
+  // Represented as flat map keyed by "i-c"
+  $dp: ();
+  $split: ();
+
+  // Base case: 1 class
+  @for $i from 1 through $n {
+    $s: list.nth($cum-sum, $i + 1);
+    $sq: list.nth($cum-sq, $i + 1);
+    $var: $sq - math.div($s * $s, $i);
+    $dp: map.set($dp, "#{$i}-1", $var);
+    $split: map.set($split, "#{$i}-1", 1);
+  }
+
+  // Iterate classes from 2 to k
+  @for $c from 2 through $k {
+    @for $i from $c through $n {
+      $min-var: 999999999999999;
+      $best-split: $c - 1;
+
+      @for $j from ($c - 1) to $i {
+        $prev-var: map.get($dp, "#{$j}-#{$c - 1}");
+
+        // Variance of segment [j+1, i]
+        $seg-count: $i - $j;
+        $seg-sum: list.nth($cum-sum, $i + 1) - list.nth($cum-sum, $j + 1);
+        $seg-sq: list.nth($cum-sq, $i + 1) - list.nth($cum-sq, $j + 1);
+        $seg-var: $seg-sq - math.div($seg-sum * $seg-sum, $seg-count);
+
+        $total-var: $prev-var + $seg-var;
+        @if $total-var < $min-var {
+          $min-var: $total-var;
+          $best-split: $j;
+        }
+      }
+
+      $dp: map.set($dp, "#{$i}-#{$c}", $min-var);
+      $split: map.set($split, "#{$i}-#{$c}", $best-split);
+    }
+  }
+
+  // Backtrack to extract class boundaries
+  $raw-breaks: ();
+  $cur-i: $n;
+  @for $c from $k through 2 {
+    $raw-breaks: list.join((list.nth($sorted, $cur-i)), $raw-breaks);
+    $cur-i: map.get($split, "#{$cur-i}-#{$c}");
+  }
+  @if $cur-i > 1 {
+    $raw-breaks: list.join((list.nth($sorted, $cur-i)), $raw-breaks);
+  }
+  $raw-breaks: list.join((list.nth($sorted, 1)), $raw-breaks);
+
+  // Deduplicate adjacent boundaries
+  $clean-breaks: (list.nth($raw-breaks, 1));
+  @for $i from 2 through list.length($raw-breaks) {
+    $prev: list.nth($clean-breaks, list.length($clean-breaks));
+    $curr: list.nth($raw-breaks, $i);
+    @if $curr != $prev {
+      $clean-breaks: list.append($clean-breaks, $curr);
+    }
+  }
+
+  @return $clean-breaks;
+}

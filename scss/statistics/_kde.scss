@@ -1,0 +1,130 @@
+// Graticule Statistical Classification - Kernel Density Estimation (KDE)
+// Non-parametric probability density estimation with Gaussian and Epanechnikov kernels,
+// and Silverman's optimal bandwidth selection.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "jenks" as j;
+@use "quantiles" as q;
+
+/// Computes the sample mean of a dataset.
+@function mean($data) {
+  $n: list.length($data);
+  @if $n == 0 { @return 0; }
+  $sum: 0;
+  @for $i from 1 through $n {
+    $sum: $sum + list.nth($data, $i);
+  }
+  @return math.div($sum, $n);
+}
+
+/// Computes the sample standard deviation (Bessel-corrected N-1).
+@function stddev($data) {
+  $n: list.length($data);
+  @if $n <= 1 { @return 0; }
+  $mu: mean($data);
+  $sum-sq: 0;
+  @for $i from 1 through $n {
+    $diff: list.nth($data, $i) - $mu;
+    $sum-sq: $sum-sq + ($diff * $diff);
+  }
+  @return m.sqrt(math.div($sum-sq, $n - 1));
+}
+
+/// Computes Silverman's rule-of-thumb optimal bandwidth h for univariate KDE.
+/// Formula: h = 0.9 * min(stddev, IQR / 1.34) * n^(-1/5)
+@function silverman-bandwidth($data) {
+  $n: list.length($data);
+  @if $n <= 1 { @return 1; }
+
+  $sd: stddev($data);
+  $quarts: q.quartiles($data);
+  $iqr: map.get($quarts, "iqr");
+
+  $iqr-adj: math.div($iqr, 1.34);
+  $a: $sd;
+  @if $iqr-adj > 0 and $iqr-adj < $sd {
+    $a: $iqr-adj;
+  }
+  @if $a < m.$EPSILON {
+    $a: 1;
+    @if $sd > 0 {
+      $a: $sd;
+    }
+  }
+
+  $n-factor: m.pow($n, -0.2); // n^(-1/5)
+  @return 0.9 * $a * $n-factor;
+}
+
+/// Evaluates the Kernel Density Estimate f_hat(x) at point x.
+/// @param {List} $data - Sample observations
+/// @param {Number} $x - Evaluation point
+/// @param {Number} $bandwidth - Smoothing bandwidth h
+/// @param {String} $kernel - "gaussian" or "epanechnikov"
+/// @return {Number} Estimated probability density
+@function kde-eval($data, $x, $bandwidth, $kernel: "gaussian") {
+  $n: list.length($data);
+  @if $n == 0 or $bandwidth <= 0 {
+    @return 0;
+  }
+
+  $h: $bandwidth;
+  $sum: 0;
+
+  @for $i from 1 through $n {
+    $u: math.div($x - list.nth($data, $i), $h);
+
+    $k-val: 0;
+    @if $kernel == "epanechnikov" {
+      @if m.abs($u) <= 1 {
+        $k-val: 0.75 * (1 - $u * $u);
+      }
+    } @else {
+      // Gaussian kernel: 1 / sqrt(2*pi) * exp(-0.5 * u^2)
+      $k-val: 0.3989422804014327 * m.exp(-0.5 * $u * $u);
+    }
+
+    $sum: $sum + $k-val;
+  }
+
+  @return math.div($sum, $n * $h);
+}
+
+/// Generates a dense list of (x, density) points spanning the data support.
+/// @param {List} $data - Array of numeric samples
+/// @param {Number} $num-points - Number of evaluation points (default 32)
+/// @param {Number} $bandwidth - Custom bandwidth (0 for automatic Silverman)
+/// @return {List} List of vec2 points ("x": x, "y": density)
+@function kde-curve($data, $num-points: 32, $bandwidth: 0) {
+  $sorted: j.sort-scalars($data);
+  $n: list.length($sorted);
+  @if $n == 0 {
+    @return ();
+  }
+
+  $min: list.nth($sorted, 1);
+  $max: list.nth($sorted, $n);
+
+  $h: $bandwidth;
+  @if $h <= 0 {
+    $h: silverman-bandwidth($sorted);
+  }
+
+  // Extend evaluation bounds by 3 bandwidths for smooth tails
+  $start-x: $min - (3 * $h);
+  $end-x: $max + (3 * $h);
+  $span: $end-x - $start-x;
+  $step: math.div($span, $num-points - 1);
+
+  $curve: ();
+  @for $i from 0 through ($num-points - 1) {
+    $x-val: $start-x + ($i * $step);
+    $dens: kde-eval($sorted, $x-val, $h, "gaussian");
+    $curve: list.append($curve, m.vec2($x-val, $dens));
+  }
+
+  @return $curve;
+}

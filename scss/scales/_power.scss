@@ -1,0 +1,56 @@
+// Graticule Scales - Continuous Power and Square Root Scale
+// Exponent-based nonlinear coordinate mapping and area perceptual scaling.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Constructs a power scale configuration: y = m * (x^exponent) + b.
+/// @param {List} $domain - Input data bounds (min, max)
+/// @param {List} $range - Visual range bounds (min, max)
+/// @param {Number} $exponent - Power exponent (default 0.5 for square root)
+/// @return {Map} Scale configuration
+@function scale-power($domain: (0, 100), $range: (0, 1), $exponent: 0.5) {
+  $d-min: list.nth($domain, 1);
+  $d-max: list.nth($domain, 2);
+
+  $pow-min: m.pow($d-min, $exponent);
+  $pow-max: m.pow($d-max, $exponent);
+
+  @return (
+    "type": "power",
+    "domain-min": $d-min,
+    "domain-max": $d-max,
+    "pow-min": $pow-min,
+    "pow-max": $pow-max,
+    "range-min": list.nth($range, 1),
+    "range-max": list.nth($range, 2),
+    "exponent": $exponent
+  );
+}
+
+/// Applies a power scale to an input data value.
+@function scale-power-apply($scale, $val) {
+  $exp: map.get($scale, "exponent");
+  $pow-v: m.pow($val, $exp);
+
+  $p-min: map.get($scale, "pow-min");
+  $p-max: map.get($scale, "pow-max");
+  $r-min: map.get($scale, "range-min");
+  $r-max: map.get($scale, "range-max");
+
+  @return m.map-range($pow-v, $p-min, $p-max, $r-min, $r-max);
+}
+
+/// Inverts a visual coordinate back to the power data domain.
+@function scale-power-invert($scale, $val) {
+  $exp: map.get($scale, "exponent");
+  $p-min: map.get($scale, "pow-min");
+  $p-max: map.get($scale, "pow-max");
+  $r-min: map.get($scale, "range-min");
+  $r-max: map.get($scale, "range-max");
+
+  $pow-v: m.map-range($val, $r-min, $r-max, $p-min, $p-max);
+  @return m.pow($pow-v, math.div(1, $exp));
+}
