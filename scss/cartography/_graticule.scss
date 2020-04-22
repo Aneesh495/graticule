@@ -1,0 +1,161 @@
+// Graticule Cartographic Engine - Adaptive Graticule Wireframe Synthesizer
+// Generates parallels of latitude and meridians of longitude sampled and projected
+// into continuous curved vector paths across any projection family.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "../projections" as p;
+@use "../geometry" as g;
+
+/// Generates a single parallel of latitude sampled at longitude increments.
+/// @param {Number} $lat - Latitude in degrees
+/// @param {Number} $sample-deg - Longitude sampling interval in degrees (default 2)
+/// @return {List} Ordered list of ("lon", "lat") maps
+@function generate-parallel-line($lat, $sample-deg: 2) {
+  $points: ();
+  $lon: -180;
+  @while $lon <= 180 {
+    $points: list.append($points, ("lon": $lon, "lat": $lat));
+    $lon: $lon + $sample-deg;
+  }
+  @return $points;
+}
+
+/// Generates a single meridian of longitude sampled at latitude increments.
+/// @param {Number} $lon - Longitude in degrees
+/// @param {Number} $sample-deg - Latitude sampling interval in degrees (default 2)
+/// @return {List} Ordered list of ("lon", "lat") maps
+@function generate-meridian-line($lon, $sample-deg: 2) {
+  $points: ();
+  $lat: -88;
+  @while $lat <= 88 {
+    $points: list.append($points, ("lon": $lon, "lat": $lat));
+    $lat: $lat + $sample-deg;
+  }
+  @return $points;
+}
+
+/// Generates a full geographic graticule wireframe grid.
+/// @param {Number} $step-deg - Grid spacing in degrees (e.g. 15 or 30 degrees)
+/// @param {Number} $sample-deg - Polyline subdivision interval in degrees (default 2)
+/// @return {Map} Map with "parallels" and "meridians" lists of lines
+@function generate-graticule-grid($step-deg: 15, $sample-deg: 2) {
+  $parallels: ();
+  $meridians: ();
+
+  // Parallels from -80 to 80
+  $lat: -80;
+  @while $lat <= 80 {
+    $parallels: list.append($parallels, generate-parallel-line($lat, $sample-deg));
+    $lat: $lat + $step-deg;
+  }
+
+  // Meridians from -180 to 180
+  $lon: -180;
+  @while $lon <= 180 {
+    $meridians: list.append($meridians, generate-meridian-line($lon, $sample-deg));
+    $lon: $lon + $step-deg;
+  }
+
+  @return (
+    "parallels": $parallels,
+    "meridians": $meridians,
+    "step": $step-deg
+  );
+}
+
+/// Projects a geographic polyline through a named projection.
+/// Filters out occluded points for azimuthal orthographic projections.
+/// @param {List} $line - List of ("lon", "lat") coordinates
+/// @param {String} $projection - Projection name
+/// @param {Map} $options - Projection options (lon0, lat0, etc.)
+/// @return {List} Projected list of vec2 points
+@function project-polyline($line, $projection: "equirectangular", $options: ()) {
+  $projected: ();
+  $len: list.length($line);
+
+  @for $i from 1 through $len {
+    $pt: list.nth($line, $i);
+    $lon: map.get($pt, "lon");
+    $lat: map.get($pt, "lat");
+
+    $p-res: p.project-point($lon, $lat, $projection, $options);
+
+    // If projection has visibility flag (e.g. Orthographic globe), check visibility
+    $visible: true;
+    @if map.has-key($p-res, "visible") {
+      $visible: map.get($p-res, "visible");
+    }
+
+    @if $visible {
+      $projected: list.append($projected, m.vec2(map.get($p-res, "x"), map.get($p-res, "y")));
+    }
+  }
+
+  @return $projected;
+}
+
+/// Generates the complete projected graticule network under any cartographic projection.
+/// @param {String} $projection - Projection name
+/// @param {Number} $step-deg - Grid spacing in degrees (default 15)
+/// @param {Number} $sample-deg - Arc subdivision in degrees (default 2)
+/// @param {Map} $options - Projection options
+/// @return {Map} Projected graticule polylines ("parallels", "meridians")
+@function project-graticule($projection: "equirectangular", $step-deg: 15, $sample-deg: 2, $options: ()) {
+  $grid: generate-graticule-grid($step-deg, $sample-deg);
+  $raw-parallels: map.get($grid, "parallels");
+  $raw-meridians: map.get($grid, "meridians");
+
+  $proj-parallels: ();
+  @for $i from 1 through list.length($raw-parallels) {
+    $line: list.nth($raw-parallels, $i);
+    $proj-line: project-polyline($line, $projection, $options);
+    @if list.length($proj-line) > 1 {
+      $proj-parallels: list.append($proj-parallels, $proj-line);
+    }
+  }
+
+  $proj-meridians: ();
+  @for $i from 1 through list.length($raw-meridians) {
+    $line: list.nth($raw-meridians, $i);
+    $proj-line: project-polyline($line, $projection, $options);
+    @if list.length($proj-line) > 1 {
+      $proj-meridians: list.append($proj-meridians, $proj-line);
+    }
+  }
+
+  @return (
+    "parallels": $proj-parallels,
+    "meridians": $proj-meridians,
+    "projection": $projection
+  );
+}
+
+/// Generates the boundary outline (map limb / horizon) for a given projection.
+/// E.g. circular horizon for Orthographic, elliptic boundary for Mollweide.
+@function projection-boundary-outline($projection: "equirectangular", $num-points: 64) {
+  $boundary: ();
+  @if $projection == "orthographic" {
+    // Circle of radius 1
+    @for $i from 0 through $num-points {
+      $theta: math.div($i * m.$TAU, $num-points);
+      $x: m.cos($theta);
+      $y: m.sin($theta);
+      $boundary: list.append($boundary, m.vec2($x, $y));
+    }
+  } @else if $projection == "mollweide" {
+    // Ellipse with semi-axes 2*sqrt(2) and sqrt(2)
+    $a: 2 * m.$SQRT2;
+    $b: m.$SQRT2;
+    @for $i from 0 through $num-points {
+      $theta: math.div($i * m.$TAU, $num-points);
+      $x: $a * m.cos($theta);
+      $y: $b * m.sin($theta);
+      $boundary: list.append($boundary, m.vec2($x, $y));
+    }
+  }
+
+  @return $boundary;
+}

@@ -1,0 +1,68 @@
+// Graticule Cartographic Engine - Coordinate and Cardinal Labeling
+// Decimal degrees, Degrees-Minutes-Seconds (DMS), and 16-point compass directions.
+
+@use "sass:math";
+@use "sass:string";
+@use "sass:list";
+@use "../math" as m;
+
+$_CARDINAL_16: (
+  "N", "NNE", "NE", "ENE",
+  "E", "ESE", "SE", "SSE",
+  "S", "SSW", "SW", "WSW",
+  "W", "WNW", "NW", "NNW"
+);
+
+/// Formats a numeric degree value into signed cardinal decimal degrees.
+/// @param {Number} $val - Coordinate in degrees
+/// @param {Boolean} $is-lat - True for latitude (N/S), false for longitude (E/W)
+/// @param {Number} $decimals - Decimal places (default 1)
+/// @return {String} Formatted string, e.g. "45.5° N"
+@function format-coordinate-decimal($val, $is-lat: true, $decimals: 1) {
+  $abs-v: m.abs($val);
+  $rounded: m.round-to($abs-v, $decimals);
+
+  $suffix: "S";
+  @if $is-lat {
+    @if $val >= 0 { $suffix: "N"; }
+  } @else {
+    $suffix: "W";
+    @if $val >= 0 { $suffix: "E"; }
+  }
+
+  @return "#{$rounded}\u00b0 #{$suffix}";
+}
+
+/// Formats a coordinate into Degrees, Minutes, and Seconds (DMS).
+/// @param {Number} $val - Coordinate in degrees
+/// @param {Boolean} $is-lat - True for latitude, false for longitude
+/// @return {String} DMS string, e.g. "45° 30' 15\" N"
+@function format-coordinate-dms($val, $is-lat: true) {
+  $abs-v: m.abs($val);
+  $d: math.floor($abs-v);
+  $rem-min: ($abs-v - $d) * 60;
+  $min: math.floor($rem-min);
+  $sec: math.round(($rem-min - $min) * 60);
+
+  $suffix: "S";
+  @if $is-lat {
+    @if $val >= 0 { $suffix: "N"; }
+  } @else {
+    $suffix: "W";
+    @if $val >= 0 { $suffix: "E"; }
+  }
+
+  @return "#{$d}\u00b0 #{$min}' #{$sec}\" #{$suffix}";
+}
+
+/// Resolves an azimuth bearing in degrees to a 16-wind compass point.
+/// @param {Number} $bearing-deg - Bearing angle in [0, 360) degrees
+/// @return {String} Cardinal abbreviation (e.g. "NNE", "SW")
+@function cardinal-direction($bearing-deg) {
+  $norm: m.mod($bearing-deg, 360);
+  $idx: math.round(math.div($norm, 22.5)) + 1;
+  @if $idx > 16 {
+    $idx: 1;
+  }
+  @return list.nth($_CARDINAL_16, $idx);
+}

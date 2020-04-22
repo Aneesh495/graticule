@@ -1,0 +1,35 @@
+// Graticule Thematic Symbology - Proportional Point Symbols
+// Flannery perceptual radius compensation and geometric area scaling.
+
+@use "sass:math";
+@use "../math" as m;
+
+// Flannery empirical perceptual compensation exponent (James J. Flannery, 1971)
+$_FLANNERY_EXPONENT: 0.5716;
+
+/// Computes the symbol radius using Flannery's perceptual scaling law.
+/// Compensates for human psychological underestimation of circle areas.
+/// @param {Number} $val - Feature quantitative magnitude
+/// @param {Number} $val-min - Minimum domain value
+/// @param {Number} $val-max - Maximum domain value
+/// @param {Number} $radius-min - Smallest circle radius in pixels (default 4)
+/// @param {Number} $radius-max - Largest circle radius in pixels (default 32)
+/// @return {Number} Perceptually compensated circle radius in pixels
+@function flannery-radius($val, $val-min, $val-max, $radius-min: 4, $radius-max: 32) {
+  $norm-val: m.inverse-lerp($val-min, $val-max, $val);
+  $clamped-val: m.clamp($norm-val, 0, 1);
+
+  // Scaled by Flannery exponent 0.5716
+  $perceptual-factor: m.pow($clamped-val, $_FLANNERY_EXPONENT);
+
+  @return m.lerp($radius-min, $radius-max, $perceptual-factor);
+}
+
+/// Computes standard geometric area-proportional circle radius (exponent 0.5).
+@function geometric-area-radius($val, $val-min, $val-max, $radius-min: 4, $radius-max: 32) {
+  $norm-val: m.inverse-lerp($val-min, $val-max, $val);
+  $clamped-val: m.clamp($norm-val, 0, 1);
+
+  $sqrt-factor: m.sqrt($clamped-val);
+  @return m.lerp($radius-min, $radius-max, $sqrt-factor);
+}

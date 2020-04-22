@@ -1,0 +1,93 @@
+// Graticule Cartography and Symbology Unit Tests
+// Comprehensive verification of graticule generation, labeling, scale bars, contours, and symbology.
+
+@use "sass:math";
+@use "sass:string";
+@use "sass:list";
+@use "sass:map";
+@use "../../scss/math" as m;
+@use "../../scss/cartography" as c;
+@use "../../scss/symbology" as sym;
+
+@mixin assert-equal($test-name, $actual, $expected, $tolerance: 0.0001) {
+  $diff: m.abs($actual - $expected);
+  @if $diff > $tolerance {
+    @error "ASSERTION FAILED: [#{$test-name}] Expected #{$expected}, got #{$actual} (delta: #{$diff} > tolerance #{$tolerance})";
+  }
+}
+
+@mixin assert-true($test-name, $condition) {
+  @if not $condition {
+    @error "ASSERTION FAILED: [#{$test-name}] Condition evaluated to false";
+  }
+}
+
+// 1. Graticule Wireframe Generation
+$grid: c.generate-graticule-grid(30, 10);
+$parallels: map.get($grid, "parallels");
+$meridians: map.get($grid, "meridians");
+@include assert-equal("Parallels count for 30 deg step", list.length($parallels), 6, 0);
+@include assert-equal("Meridians count for 30 deg step", list.length($meridians), 13, 0);
+
+// Projected graticule polylines
+$proj-grid: c.project-graticule("robinson", 30, 10);
+$proj-pars: map.get($proj-grid, "parallels");
+@include assert-true("Projected parallels non-empty", list.length($proj-pars) > 0);
+
+// 2. Coordinate Labeling
+$dec-lat: c.format-coordinate-decimal(37.77, true, 2);
+@include assert-true("Decimal lat label contains N", string.index($dec-lat, "N") != null);
+
+$dms-lon: c.format-coordinate-dms(-122.42, false);
+@include assert-true("DMS lon label contains W", string.index($dms-lon, "W") != null);
+
+// 16-point Compass Directions
+@include assert-true("0 deg is North", c.cardinal-direction(0) == "N");
+@include assert-true("90 deg is East", c.cardinal-direction(90) == "E");
+@include assert-true("180 deg is South", c.cardinal-direction(180) == "S");
+@include assert-true("225 deg is Southwest", c.cardinal-direction(225) == "SW");
+
+// 3. Geodesic Scale Bar
+$scale-bar: c.generate-scale-bar(400, 4);
+$blocks: map.get($scale-bar, "blocks");
+@include assert-equal("Scale bar block count", list.length($blocks), 4, 0);
+
+// 4. Grid Convergence Angle
+$conv-conic: c.grid-convergence-angle(10, 40, "lambert-conformal-conic", ("lon0": 0));
+@include assert-true("Conic convergence angle > 0", $conv-conic > 0);
+
+// 5. Marching Squares Contour Extraction
+// 3x3 elevation grid with a peak in the center
+$elev-grid: (
+  (0, 0, 0),
+  (0, 100, 0),
+  (0, 0, 0)
+);
+$bbox: ("min-x": 0, "min-y": 0, "max-x": 10, "max-y": 10);
+$contours-50: c.marching-squares-contour($elev-grid, 3, 3, 50, $bbox);
+@include assert-true("Contour segments generated around central peak", list.length($contours-50) > 0);
+
+// 6. Choropleth Classification
+$breaks: (0, 25, 50, 75, 100);
+@include assert-equal("Classify value 10", sym.classify-value(10, $breaks), 1, 0);
+@include assert-equal("Classify value 60", sym.classify-value(60, $breaks), 3, 0);
+@include assert-equal("Classify value 95", sym.classify-value(95, $breaks), 4, 0);
+
+// 7. Meteorological Wind Barbs
+$barb-decomp: sym.decompose-wind-speed(65);
+@include assert-equal("65 knots has 1 pennant (50 kt)", map.get($barb-decomp, "pennants"), 1, 0);
+@include assert-equal("65 knots has 1 full barb (10 kt)", map.get($barb-decomp, "full-barbs"), 1, 0);
+@include assert-equal("65 knots has 1 half barb (5 kt)", map.get($barb-decomp, "half-barbs"), 1, 0);
+
+// 8. Flannery Proportional Symbol Scaling
+$r-min: sym.flannery-radius(0, 0, 100, 5, 50);
+$r-max: sym.flannery-radius(100, 0, 100, 5, 50);
+$r-mid: sym.flannery-radius(50, 0, 100, 5, 50);
+@include assert-equal("Flannery radius at minimum", $r-min, 5, 0.0001);
+@include assert-equal("Flannery radius at maximum", $r-max, 50, 0.0001);
+@include assert-true("Flannery midpoint radius is positive", $r-mid > 5 and $r-mid < 50);
+
+.cartography-tests-passed {
+  --status: "pass";
+  --total-asserts: 18;
+}

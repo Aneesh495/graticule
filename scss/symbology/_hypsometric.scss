@@ -1,0 +1,27 @@
+// Graticule Thematic Symbology - Hypsometric and Bathymetric Elevation Tints
+// Continuous and stepped elevation color assignments for terrain and oceanic depths.
+
+@use "sass:math";
+@use "sass:map";
+@use "../math" as m;
+@use "../color" as c;
+@use "../scales" as s;
+
+/// Computes the elevation tint color for a real-world altitude or depth in meters.
+/// Negative elevation maps to the bathymetric palette (oceanic trenches to continental shelf).
+/// Positive elevation maps to the topographic palette (sea level plain to alpine snow).
+/// @param {Number} $elevation-meters - Elevation in meters relative to mean sea level
+/// @param {Number} $max-depth - Deepest ocean depth in meters (default -11000 for Mariana Trench)
+/// @param {Number} $max-elevation - Highest peak in meters (default 8848 for Mount Everest)
+/// @return {Color} Hypsometric terrain color
+@function hypsometric-color($elevation-meters, $max-depth: -11000, $max-elevation: 8848) {
+  @if $elevation-meters < 0 {
+    // Ocean depth in [max-depth, 0]
+    $t: m.inverse-lerp($max-depth, 0, $elevation-meters);
+    @return c.colormap-sample("bathymetry", $t);
+  } @else {
+    // Land altitude in [0, max-elevation]
+    $t: m.inverse-lerp(0, $max-elevation, $elevation-meters);
+    @return c.colormap-sample("topography", $t);
+  }
+}

@@ -1,0 +1,75 @@
+// Graticule Cartographic Engine - Compass Rose and Grid Convergence
+// True North, Grid North, and local meridian convergence angle synthesis.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Computes the grid convergence angle (gamma) between True North and Grid North.
+/// In conic and transverse projections, grid lines tilt relative to true meridians.
+/// @param {Number} $lon - Local longitude in degrees
+/// @param {Number} $lat - Local latitude in degrees
+/// @param {String} $projection - Projection name
+/// @param {Map} $options - Projection parameters (lon0, lat1, lat2)
+/// @return {Number} Convergence angle in degrees
+@function grid-convergence-angle($lon, $lat, $projection: "equirectangular", $options: ()) {
+  $lon0: 0;
+  @if map.has-key($options, "lon0") {
+    $lon0: map.get($options, "lon0");
+  }
+  $delta-lon: $lon - $lon0;
+
+  @if $projection == "lambert-conformal-conic" or $projection == "albers" or $projection == "equidistant-conic" {
+    $lat1: 33;
+    $lat2: 45;
+    @if map.has-key($options, "lat1") { $lat1: map.get($options, "lat1"); }
+    @if map.has-key($options, "lat2") { $lat2: map.get($options, "lat2"); }
+
+    $phi1: m.deg-to-rad($lat1);
+    $phi2: m.deg-to-rad($lat2);
+    $n: 0.5 * (m.sin($phi1) + m.sin($phi2));
+
+    @return $n * $delta-lon;
+  }
+
+  @if $projection == "transverse-mercator" {
+    $phi: m.deg-to-rad($lat);
+    $dlam: m.deg-to-rad($delta-lon);
+    $gamma-rad: m.atan(m.tan($dlam) * m.sin($phi));
+    @return m.rad-to-deg($gamma-rad);
+  }
+
+  // Cylindrical standard projections have vertical meridians everywhere
+  @return 0;
+}
+
+/// Generates 8-point compass rose vector polygon vertices oriented to local convergence.
+/// @param {Number} $convergence-deg - Convergence angle in degrees
+/// @param {Number} $outer-radius - Outer pointer radius
+/// @param {Number} $inner-radius - Inner valley radius
+/// @return {Map} Compass specification with primary North pointer and secondary points
+@function generate-compass-rose($convergence-deg: 0, $outer-radius: 50, $inner-radius: 20) {
+  $points: ();
+  // 8 points: N, NE, E, SE, S, SW, W, NW
+  @for $i from 0 through 7 {
+    $angle-deg: ($i * 45) - 90 - $convergence-deg; // -90 aligns index 0 to North (top)
+    $angle-rad: m.deg-to-rad($angle-deg);
+
+    $rad: $inner-radius;
+    @if $i % 2 == 0 {
+      $rad: $outer-radius;
+    }
+
+    $x: $rad * m.cos($angle-rad);
+    $y: $rad * m.sin($angle-rad);
+    $points: list.append($points, m.vec2($x, $y));
+  }
+
+  @return (
+    "convergence-deg": $convergence-deg,
+    "outer-radius": $outer-radius,
+    "inner-radius": $inner-radius,
+    "star-points": $points
+  );
+}

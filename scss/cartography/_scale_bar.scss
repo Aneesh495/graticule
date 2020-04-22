@@ -1,0 +1,65 @@
+// Graticule Cartographic Engine - Geodesic Scale Bar Synthesizer
+// Computes local projection scale distortion, ground distance calibration,
+// and alternating block subdivisions.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "../geometry" as g;
+@use "../projections" as p;
+
+/// Computes the visual length in pixels for a ground distance in kilometers.
+/// Accounts for latitude-dependent distortion in cylindrical and conic projections.
+/// @param {Number} $target-km - Desired scale bar real-world distance in km
+/// @param {Number} $center-lat - Latitude where scale is calibrated
+/// @param {Number} $viewport-width-px - Total map display width in pixels
+/// @param {Number} $map-span-deg - Longitudinal extent spanned by viewport in degrees
+/// @return {Number} Width in pixels
+@function scale-bar-pixels($target-km, $center-lat, $viewport-width-px: 800, $map-span-deg: 360) {
+  // Real world ground length in km spanned along center latitude
+  $lat-rad: m.deg-to-rad($center-lat);
+  $ground-width-km: m.deg-to-rad($map-span-deg) * m.cos($lat-rad) * math.div(m.$EARTH_RADIUS_MEAN, 1000);
+
+  @if $ground-width-km <= 0 {
+    @return 100;
+  }
+
+  $px-per-km: math.div($viewport-width-px, $ground-width-km);
+  @return math.round($target-km * $px-per-km);
+}
+
+/// Generates scale bar subdivisions and tick annotations.
+/// @param {Number} $total-km - Total scale distance
+/// @param {Number} $divisions - Number of segment blocks (default 4)
+/// @return {Map} Scale bar specification ("total-km", "unit", "blocks", "labels")
+@function generate-scale-bar($total-km: 500, $divisions: 4) {
+  $block-km: math.div($total-km, $divisions);
+  $blocks: ();
+  $labels: ();
+
+  @for $i from 0 through $divisions {
+    $km-val: math.round($i * $block-km);
+    $labels: list.append($labels, $km-val);
+  }
+
+  @for $i from 1 through $divisions {
+    $fill: "filled";
+    @if $i % 2 == 0 {
+      $fill: "unfilled";
+    }
+    $blocks: list.append($blocks, (
+      "index": $i,
+      "width-pct": math.div(100, $divisions) * 1%,
+      "style": $fill
+    ));
+  }
+
+  @return (
+    "total-km": $total-km,
+    "unit": "km",
+    "divisions": $divisions,
+    "blocks": $blocks,
+    "labels": $labels
+  );
+}

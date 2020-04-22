@@ -1,0 +1,89 @@
+// Graticule Thematic Symbology - Meteorological Wind Barbs and Flow Vectors
+// Standard WMO wind barb decomposition (pennants, full barbs, half barbs)
+// and vector field flow arrow geometry.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Decomposes a wind speed in knots into standard WMO barb glyph counts.
+/// @param {Number} $knots - Wind speed in knots
+/// @return {Map} Component counts ("pennants", "full-barbs", "half-barbs", "calm")
+@function decompose-wind-speed($knots) {
+  $spd: math.round(m.strip-unit($knots));
+  @if $spd < 2 {
+    @return ("pennants": 0, "full-barbs": 0, "half-barbs": 0, "calm": true);
+  }
+
+  // Round to nearest 5 knots
+  $rem5: $spd % 5;
+  $rounded: $spd - $rem5;
+  @if $rem5 >= 3 {
+    $rounded: $rounded + 5;
+  }
+
+  $pennants: math.floor(math.div($rounded, 50));
+  $rem: $rounded % 50;
+
+  $full: math.floor(math.div($rem, 10));
+  $rem10: $rem % 10;
+
+  $half: math.floor(math.div($rem10, 5));
+
+  @return (
+    "pennants": $pennants,
+    "full-barbs": $full,
+    "half-barbs": $half,
+    "calm": false,
+    "speed-knots": $spd
+  );
+}
+
+/// Generates the 2D vector geometry of a directional flow arrow.
+/// @param {Map} $origin - Starting point vec2
+/// @param {Number} $u - U velocity component (East-West)
+/// @param {Number} $v - V velocity component (North-South)
+/// @param {Number} $scale - Velocity to length scaling factor
+/// @param {Number} $head-size - Arrowhead length
+/// @return {Map} Arrow geometry ("shaft-start", "shaft-end", "head-left", "head-right", "speed")
+@function flow-arrow-geometry($origin, $u, $v, $scale: 1, $head-size: 8) {
+  $mag: m.hypot($u, $v);
+  @if $mag < m.$EPSILON {
+    @return (
+      "shaft-start": $origin,
+      "shaft-end": $origin,
+      "head-left": $origin,
+      "head-right": $origin,
+      "speed": 0
+    );
+  }
+
+  $angle-rad: m.atan2($v, $u);
+  $length: $mag * $scale;
+
+  $ox: map.get($origin, "x");
+  $oy: map.get($origin, "y");
+
+  $end-x: $ox + ($length * m.cos($angle-rad));
+  $end-y: $oy + ($length * m.sin($angle-rad));
+  $shaft-end: m.vec2($end-x, $end-y);
+
+  // Arrowhead wings rotated +/- 150 degrees
+  $left-angle: $angle-rad + m.deg-to-rad(150);
+  $right-angle: $angle-rad - m.deg-to-rad(150);
+
+  $hl-x: $end-x + ($head-size * m.cos($left-angle));
+  $hl-y: $end-y + ($head-size * m.sin($left-angle));
+
+  $hr-x: $end-x + ($head-size * m.cos($right-angle));
+  $hr-y: $end-y + ($head-size * m.sin($right-angle));
+
+  @return (
+    "shaft-start": $origin,
+    "shaft-end": $shaft-end,
+    "head-left": m.vec2($hl-x, $hl-y),
+    "head-right": m.vec2($hr-x, $hr-y),
+    "speed": $mag
+  );
+}

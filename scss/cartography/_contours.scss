@@ -1,0 +1,100 @@
+// Graticule Cartographic Engine - Marching Squares Contour Generator
+// Generates continuous elevation isopleths and contour lines from 2D scalar fields in pure Sass.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Linear interpolation along grid edge between two scalar sample points.
+@function _edge-lerp($p1, $p2, $v1, $v2, $threshold) {
+  $diff: $v2 - $v1;
+  $t: 0.5;
+  @if m.abs($diff) > m.$EPSILON {
+    $t: math.div($threshold - $v1, $diff);
+  }
+  $t-clamped: m.clamp($t, 0, 1);
+  @return m.vec-lerp($p1, $p2, $t-clamped);
+}
+
+/// Marching Squares isopleth extraction for a 2D scalar matrix grid.
+/// @param {List} $grid - 2D list of numeric values (rows of columns)
+/// @param {Number} $rows - Number of rows
+/// @param {Number} $cols - Number of columns
+/// @param {Number} $threshold - Contour level value
+/// @param {Map} $bounds - Real-world coordinates ("min-x", "min-y", "max-x", "max-y")
+/// @return {List} List of line segment pairs: ((p1, p2), (p1, p2), ...)
+@function marching-squares-contour($grid, $rows, $cols, $threshold, $bounds) {
+  $min-x: map.get($bounds, "min-x");
+  $min-y: map.get($bounds, "min-y");
+  $max-x: map.get($bounds, "max-x");
+  $max-y: map.get($bounds, "max-y");
+
+  $dx: math.div($max-x - $min-x, $cols - 1);
+  $dy: math.div($max-y - $min-y, $rows - 1);
+
+  $segments: ();
+
+  @for $r from 1 to $rows {
+    $row-top: list.nth($grid, $r);
+    $row-bottom: list.nth($grid, $r + 1);
+
+    $y-top: $max-y - (($r - 1) * $dy);
+    $y-bottom: $max-y - ($r * $dy);
+
+    @for $c from 1 to $cols {
+      $v-tl: list.nth($row-top, $c);
+      $v-tr: list.nth($row-top, $c + 1);
+      $v-br: list.nth($row-bottom, $c + 1);
+      $v-bl: list.nth($row-bottom, $c);
+
+      $x-left: $min-x + (($c - 1) * $dx);
+      $x-right: $min-x + ($c * $dx);
+
+      $p-tl: m.vec2($x-left, $y-top);
+      $p-tr: m.vec2($x-right, $y-top);
+      $p-br: m.vec2($x-right, $y-bottom);
+      $p-bl: m.vec2($x-left, $y-bottom);
+
+      // Compute 4-bit binary index
+      $b0: 0; @if $v-tl >= $threshold { $b0: 1; }
+      $b1: 0; @if $v-tr >= $threshold { $b1: 2; }
+      $b2: 0; @if $v-br >= $threshold { $b2: 4; }
+      $b3: 0; @if $v-bl >= $threshold { $b3: 8; }
+      $case: $b0 + $b1 + $b2 + $b3;
+
+      // Skip empty or completely covered cells
+      @if $case > 0 and $case < 15 {
+        // Edge midpoints
+        $edge-top: _edge-lerp($p-tl, $p-tr, $v-tl, $v-tr, $threshold);
+        $edge-right: _edge-lerp($p-tr, $p-br, $v-tr, $v-br, $threshold);
+        $edge-bottom: _edge-lerp($p-bl, $p-br, $v-bl, $v-br, $threshold);
+        $edge-left: _edge-lerp($p-tl, $p-bl, $v-tl, $v-bl, $threshold);
+
+        @if $case == 1 or $case == 14 {
+          $segments: list.append($segments, ($edge-left, $edge-top));
+        } @else if $case == 2 or $case == 13 {
+          $segments: list.append($segments, ($edge-top, $edge-right));
+        } @else if $case == 3 or $case == 12 {
+          $segments: list.append($segments, ($edge-left, $edge-right));
+        } @else if $case == 4 or $case == 11 {
+          $segments: list.append($segments, ($edge-right, $edge-bottom));
+        } @else if $case == 5 {
+          // Saddle case
+          $segments: list.append($segments, ($edge-left, $edge-top));
+          $segments: list.append($segments, ($edge-right, $edge-bottom));
+        } @else if $case == 6 or $case == 9 {
+          $segments: list.append($segments, ($edge-top, $edge-bottom));
+        } @else if $case == 7 or $case == 8 {
+          $segments: list.append($segments, ($edge-left, $edge-bottom));
+        } @else if $case == 10 {
+          // Saddle case
+          $segments: list.append($segments, ($edge-top, $edge-right));
+          $segments: list.append($segments, ($edge-left, $edge-bottom));
+        }
+      }
+    }
+  }
+
+  @return $segments;
+}

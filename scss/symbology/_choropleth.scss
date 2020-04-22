@@ -1,0 +1,52 @@
+// Graticule Thematic Symbology - Choropleth Mapping
+// Quantitative attribute data classification and perceptual palette assignment.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "../color" as c;
+@use "../statistics" as st;
+
+/// Classifies a numeric value into a discrete class index [1, k] given boundary breaks.
+/// @param {Number} $val - Numeric attribute value
+/// @param {List} $breaks - Sorted class boundary thresholds (length k+1)
+/// @return {Number} Class index in [1, k]
+@function classify-value($val, $breaks) {
+  $n-breaks: list.length($breaks);
+  @if $n-breaks <= 1 {
+    @return 1;
+  }
+
+  $k: $n-breaks - 1;
+  @for $i from 1 through $k {
+    $lower: list.nth($breaks, $i);
+    $upper: list.nth($breaks, $i + 1);
+
+    @if $i == 1 and $val <= $lower {
+      @return 1;
+    }
+    @if $val >= $lower and $val <= $upper {
+      @return $i;
+    }
+  }
+
+  @return $k;
+}
+
+/// Computes the choropleth color for a feature value using Jenks or Quantile classification.
+/// @param {Number} $val - Value to symbolize
+/// @param {List} $breaks - Class boundary thresholds (length k+1)
+/// @param {String} $palette-name - Colormap name (default "viridis")
+/// @return {Color} Classified fill color
+@function choropleth-color($val, $breaks, $palette-name: "viridis") {
+  $k: list.length($breaks) - 1;
+  @if $k <= 0 {
+    $k: 1;
+  }
+
+  $class-idx: classify-value($val, $breaks);
+  $t: math.div($class-idx - 0.5, $k);
+
+  @return c.colormap-sample($palette-name, $t);
+}
