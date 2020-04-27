@@ -1,0 +1,55 @@
+// Graticule Analytical Charts - Parallel Coordinates Plots
+// Multi-dimensional telemetry and feature vector layout across parallel vertical axes.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "../scales" as s;
+
+/// Computes the visual polyline for a multi-dimensional data observation.
+/// @param {List} $observation - Ordered list of numerical attributes
+/// @param {List} $axis-scales - Ordered list of linear scale maps for each dimension
+/// @param {Number} $width - Total chart width in pixels
+/// @param {Number} $height - Total chart height in pixels
+/// @return {List} Ordered list of vec2 vertices
+@function parallel-coordinates-polyline($observation, $axis-scales, $width: 600, $height: 300) {
+  $m-dims: list.length($observation);
+  @if $m-dims < 2 {
+    @return ();
+  }
+
+  $dx: math.div($width, $m-dims - 1);
+  $polyline: ();
+
+  @for $i from 1 through $m-dims {
+    $val: list.nth($observation, $i);
+    $scale: list.nth($axis-scales, $i);
+
+    $x: ($i - 1) * $dx;
+    $y: s.scale-apply($scale, $val);
+
+    $polyline: list.append($polyline, m.vec2($x, $y));
+  }
+
+  @return $polyline;
+}
+
+/// Generates vertical axis rail coordinates for a parallel coordinates plot.
+/// @param {Number} $num-axes - Number of dimensions
+/// @param {Number} $width - Width in pixels
+/// @param {Number} $height - Height in pixels
+/// @return {List} List of vertical axis line pairs ((top, bottom), ...)
+@function parallel-axis-rails($num-axes, $width: 600, $height: 300) {
+  $rails: ();
+  $dx: math.div($width, $num-axes - 1);
+
+  @for $i from 1 through $num-axes {
+    $x: ($i - 1) * $dx;
+    $top: m.vec2($x, 0);
+    $bottom: m.vec2($x, $height);
+    $rails: list.append($rails, ($top, $bottom));
+  }
+
+  @return $rails;
+}

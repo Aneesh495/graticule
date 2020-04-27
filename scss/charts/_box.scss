@@ -1,0 +1,86 @@
+// Graticule Analytical Charts - Tukey Box-and-Whisker Plots
+// Geometric layout of quartiles, median dividers, whisker serifs, and outlier points.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "../statistics" as st;
+@use "../scales" as s;
+
+/// Generates the complete 2D geometric layout of a Tukey box-and-whisker plot.
+/// @param {List} $data - Sample observations
+/// @param {Map} $y-scale - Linear scale for data domain to visual Y
+/// @param {Number} $x-center - Visual horizontal axis center
+/// @param {Number} $box-width - Width of the quartile box body in pixels
+/// @param {Number} $serif-width - Width of whisker crossbars in pixels
+/// @return {Map} Box-plot geometry specification
+@function boxplot-geometry($data, $y-scale, $x-center, $box-width: 30, $serif-width: 15) {
+  $summary: st.five-number-summary($data);
+  @if list.length($summary) == 0 {
+    @return ();
+  }
+
+  $q1: map.get($summary, "q1");
+  $med: map.get($summary, "median");
+  $q3: map.get($summary, "q3");
+  $w-low: map.get($summary, "whisker-low");
+  $w-high: map.get($summary, "whisker-high");
+  $raw-outliers: map.get($summary, "outliers");
+
+  $y-q1: s.scale-apply($y-scale, $q1);
+  $y-med: s.scale-apply($y-scale, $med);
+  $y-q3: s.scale-apply($y-scale, $q3);
+  $y-wlow: s.scale-apply($y-scale, $w-low);
+  $y-whigh: s.scale-apply($y-scale, $w-high);
+
+  $half-w: 0.5 * $box-width;
+  $half-serif: 0.5 * $serif-width;
+
+  $box-left: $x-center - $half-w;
+  $box-right: $x-center + $half-w;
+
+  $top: $y-q3;
+  $bottom: $y-q1;
+  @if $y-q1 < $y-q3 {
+    $top: $y-q1;
+    $bottom: $y-q3;
+  }
+
+  // Whisker lines
+  $whisker-top-line: (m.vec2($x-center, $top), m.vec2($x-center, $y-whigh));
+  $whisker-bottom-line: (m.vec2($x-center, $bottom), m.vec2($x-center, $y-wlow));
+
+  // Whisker end serifs
+  $serif-high: (m.vec2($x-center - $half-serif, $y-whigh), m.vec2($x-center + $half-serif, $y-whigh));
+  $serif-low: (m.vec2($x-center - $half-serif, $y-wlow), m.vec2($x-center + $half-serif, $y-wlow));
+
+  // Median divider line
+  $median-line: (m.vec2($box-left, $y-med), m.vec2($box-right, $y-med));
+
+  // Outlier points
+  $outlier-points: ();
+  @if list.length($raw-outliers) > 0 {
+    @for $i from 1 through list.length($raw-outliers) {
+      $ov: list.nth($raw-outliers, $i);
+      $oy: s.scale-apply($y-scale, $ov);
+      $outlier-points: list.append($outlier-points, m.vec2($x-center, $oy));
+    }
+  }
+
+  @return (
+    "box-rect": (
+      "x": $box-left,
+      "y": $top,
+      "width": $box-width,
+      "height": m.abs($bottom - $top)
+    ),
+    "median-line": $median-line,
+    "whisker-top": $whisker-top-line,
+    "whisker-bottom": $whisker-bottom-line,
+    "serif-top": $serif-high,
+    "serif-bottom": $serif-low,
+    "outliers": $outlier-points,
+    "summary": $summary
+  );
+}

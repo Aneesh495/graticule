@@ -1,0 +1,79 @@
+// Graticule Analytical Charts Unit Tests
+// Comprehensive verification of Candlestick, Violin, Box Plot, Ternary, Parallel, Radar, and Sankey.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../../scss/math" as m;
+@use "../../scss/scales" as s;
+@use "../../scss/charts" as ch;
+
+@mixin assert-equal($test-name, $actual, $expected, $tolerance: 0.0001) {
+  $diff: m.abs($actual - $expected);
+  @if $diff > $tolerance {
+    @error "ASSERTION FAILED: [#{$test-name}] Expected #{$expected}, got #{$actual} (delta: #{$diff} > tolerance #{$tolerance})";
+  }
+}
+
+@mixin assert-true($test-name, $condition) {
+  @if not $condition {
+    @error "ASSERTION FAILED: [#{$test-name}] Condition evaluated to false";
+  }
+}
+
+// 1. Candlestick Geometry
+$candle: ("open": 100, "high": 120, "low": 90, "close": 110, "volume": 5000);
+$y-scale: s.scale-linear((80, 130), (0, 100));
+$geom: ch.candle-geometry($candle, $y-scale, 50, 10);
+@include assert-true("Candlestick is bullish", map.get($geom, "is-bullish"));
+$wick-t: map.get($geom, "wick-top");
+@include assert-equal("Wick top X", map.get($wick-t, "x"), 50, 0.0001);
+
+// SMA 3-period
+$closes: (10, 20, 30, 40, 50);
+$sma3: ch.calculate-sma($closes, 3);
+// Last element should be (30 + 40 + 50) / 3 = 40
+@include assert-equal("SMA 3 of last element", list.nth($sma3, 5), 40, 0.0001);
+
+// 2. Violin Plot Polygon
+$violin-data: (10, 15, 15, 20, 20, 20, 25, 25, 30);
+$violin: ch.violin-geometry($violin-data, $y-scale, 100, 30, 16);
+$poly: map.get($violin, "polygon");
+@include assert-true("Violin polygon has points", list.length($poly) > 0);
+
+// 3. Box Plot Geometry
+$box-data: (10, 20, 30, 40, 50, 60, 70);
+$box: ch.boxplot-geometry($box-data, $y-scale, 100, 20, 10);
+$median-line: map.get($box, "median-line");
+@include assert-true("Boxplot median line exists", list.length($median-line) == 2);
+
+// 4. Ternary Barycentric Mapping
+// Centroid test: (1/3, 1/3, 1/3) should map to height H / 3
+$tri-size: 300;
+$centroid-tri: ch.ternary-to-cartesian(0.3333333, 0.3333333, 0.3333333, $tri-size);
+$h: 0.5 * m.$SQRT3 * $tri-size;
+@include assert-equal("Ternary centroid Y", map.get($centroid-tri, "y"), math.div(2 * $h, 3), 1.0);
+
+// 5. Parallel Coordinates
+$scales: (
+  s.scale-linear((0, 10), (0, 100)),
+  s.scale-linear((0, 100), (0, 100)),
+  s.scale-linear((0, 1000), (0, 100))
+);
+$obs: (5, 50, 500);
+$par-line: ch.parallel-coordinates-polyline($obs, $scales, 300, 100);
+@include assert-equal("Parallel coordinates vertex count", list.length($par-line), 3, 0);
+
+// 6. Radar Chart Polygon
+$radar-vals: (0.8, 0.6, 0.9, 0.4, 0.7);
+$radar-poly: ch.radar-polygon($radar-vals, m.vec2(100, 100), 80);
+@include assert-equal("Radar closed polygon vertex count (5 + 1)", list.length($radar-poly), 6, 0);
+
+// 7. Sankey Flow Ribbon
+$sankey: ch.sankey-ribbon-geometry(0, 100, 40, 200, 150, 60);
+@include assert-equal("Sankey ribbon horizontal width", map.get($sankey, "width"), 200, 0.0001);
+
+.charts-tests-passed {
+  --status: "pass";
+  --total-asserts: 10;
+}

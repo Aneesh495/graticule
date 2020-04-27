@@ -1,0 +1,65 @@
+// Graticule Analytical Charts - Ternary Composition Plots
+// Barycentric coordinate mapping and triangular mixture grid lines for 3-phase systems.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Maps barycentric mixture coordinates (a, b, c) to 2D Cartesian triangle coordinates.
+/// Components are normalized so a + b + c = 1.
+/// Vertex A is top apex, Vertex B is bottom-left, Vertex C is bottom-right.
+/// @param {Number} $a - Proportion of component A
+/// @param {Number} $b - Proportion of component B
+/// @param {Number} $c - Proportion of component C
+/// @param {Number} $size - Equilateral triangle side length in pixels
+/// @return {Map} Cartesian vec2 point (x, y)
+@function ternary-to-cartesian($a, $b, $c, $size: 400) {
+  $sum: $a + $b + $c;
+  @if $sum <= 0 {
+    $sum: 1;
+  }
+  $na: math.div($a, $sum);
+  $nb: math.div($b, $sum);
+  $nc: math.div($c, $sum);
+
+  $h: 0.5 * m.$SQRT3 * $size;
+
+  $x: ($nc + (0.5 * $na)) * $size;
+  $y: (1 - $na) * $h;
+
+  @return m.vec2($x, $y);
+}
+
+/// Generates the wireframe grid lines for a ternary diagram at specified percentage intervals.
+/// @param {Number} $step-pct - Interval step percentage (default 20 for 20%, 40%, 60%, 80%)
+/// @param {Number} $size - Triangle side length
+/// @return {List} List of line segment pairs ((start, end), ...)
+@function ternary-grid-lines($step-pct: 20, $size: 400) {
+  $lines: ();
+  $h: 0.5 * m.$SQRT3 * $size;
+
+  $v: $step-pct;
+  @while $v < 100 {
+    $t: math.div($v, 100);
+
+    // Constant A lines (horizontal)
+    $p-a1: ternary-to-cartesian($t, 1 - $t, 0, $size);
+    $p-a2: ternary-to-cartesian($t, 0, 1 - $t, $size);
+    $lines: list.append($lines, ($p-a1, $p-a2));
+
+    // Constant B lines
+    $p-b1: ternary-to-cartesian(1 - $t, $t, 0, $size);
+    $p-b2: ternary-to-cartesian(0, $t, 1 - $t, $size);
+    $lines: list.append($lines, ($p-b1, $p-b2));
+
+    // Constant C lines
+    $p-c1: ternary-to-cartesian(1 - $t, 0, $t, $size);
+    $p-c2: ternary-to-cartesian(0, 1 - $t, $t, $size);
+    $lines: list.append($lines, ($p-c1, $p-c2));
+
+    $v: $v + $step-pct;
+  }
+
+  @return $lines;
+}

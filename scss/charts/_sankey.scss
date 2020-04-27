@@ -1,0 +1,52 @@
+// Graticule Analytical Charts - Alluvial and Sankey Flow Ribbons
+// Cubic Bezier flow geometry for energy, financial, and material transfer networks.
+
+@use "sass:math";
+@use "sass:map";
+@use "../math" as m;
+
+/// Generates the geometric control points for a smooth Sankey flow ribbon.
+/// Uses cubic Bezier curves with horizontal tangent handles to ensure smooth laminar flow.
+/// @param {Number} $x0 - Source X coordinate
+/// @param {Number} $y0 - Source center Y coordinate
+/// @param {Number} $h0 - Source ribbon thickness in pixels
+/// @param {Number} $x1 - Destination X coordinate
+/// @param {Number} $y1 - Destination center Y coordinate
+/// @param {Number} $h1 - Destination ribbon thickness in pixels
+/// @return {Map} Flow ribbon geometry ("top-p0", "top-p1", "top-p2", "top-p3", "bottom-p0", "bottom-p1", "bottom-p2", "bottom-p3")
+@function sankey-ribbon-geometry($x0, $y0, $h0, $x1, $y1, $h1) {
+  $half-h0: 0.5 * $h0;
+  $half-h1: 0.5 * $h1;
+
+  $top-y0: $y0 - $half-h0;
+  $top-y1: $y1 - $half-h1;
+  $bot-y0: $y0 + $half-h0;
+  $bot-y1: $y1 + $half-h1;
+
+  $dx: $x1 - $x0;
+  $ctrl-dx: 0.5 * $dx;
+
+  // Top boundary cubic Bezier: P0 -> P1 -> P2 -> P3
+  $top-p0: m.vec2($x0, $top-y0);
+  $top-p1: m.vec2($x0 + $ctrl-dx, $top-y0);
+  $top-p2: m.vec2($x1 - $ctrl-dx, $top-y1);
+  $top-p3: m.vec2($x1, $top-y1);
+
+  // Bottom boundary cubic Bezier: Q0 -> Q1 -> Q2 -> Q3
+  $bot-p0: m.vec2($x0, $bot-y0);
+  $bot-p1: m.vec2($x0 + $ctrl-dx, $bot-y0);
+  $bot-p2: m.vec2($x1 - $ctrl-dx, $bot-y1);
+  $bot-p3: m.vec2($x1, $bot-y1);
+
+  @return (
+    "top-p0": $top-p0,
+    "top-p1": $top-p1,
+    "top-p2": $top-p2,
+    "top-p3": $top-p3,
+    "bot-p0": $bot-p0,
+    "bot-p1": $bot-p1,
+    "bot-p2": $bot-p2,
+    "bot-p3": $bot-p3,
+    "width": $dx
+  );
+}

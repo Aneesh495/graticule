@@ -1,0 +1,66 @@
+// Graticule Analytical Charts - Mirrored Violin Distribution Plots
+// Symmetrical Kernel Density Estimation profiles for distribution shape telemetry.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "../statistics" as st;
+@use "../scales" as s;
+
+/// Generates a closed 2D polygon representing a mirrored vertical violin density plot.
+/// @param {List} $data - Sample observations
+/// @param {Map} $y-scale - Linear scale for the continuous variable
+/// @param {Number} $x-center - Visual horizontal axis center
+/// @param {Number} $max-width - Maximum half-width in pixels for peak density
+/// @param {Number} $num-points - Number of vertical evaluation slices (default 32)
+/// @return {Map} Violin geometry ("polygon", "max-density", "bandwidth")
+@function violin-geometry($data, $y-scale, $x-center, $max-width: 40, $num-points: 32) {
+  $kde-pts: st.kde-curve($data, $num-points);
+  $n: list.length($kde-pts);
+
+  @if $n == 0 {
+    @return ("polygon": ());
+  }
+
+  // Find peak density for normalization
+  $max-dens: 0;
+  @for $i from 1 through $n {
+    $pt: list.nth($kde-pts, $i);
+    $d: map.get($pt, "y");
+    @if $d > $max-dens {
+      $max-dens: $d;
+    }
+  }
+
+  @if $max-dens < m.$EPSILON {
+    $max-dens: 1;
+  }
+
+  $right-points: ();
+  $left-points: ();
+
+  @for $i from 1 through $n {
+    $pt: list.nth($kde-pts, $i);
+    $val: map.get($pt, "x");
+    $dens: map.get($pt, "y");
+
+    $y-coord: s.scale-apply($y-scale, $val);
+    $half-w: $max-width * math.div($dens, $max-dens);
+
+    $right-points: list.append($right-points, m.vec2($x-center + $half-w, $y-coord));
+    $left-points: list.append($left-points, m.vec2($x-center - $half-w, $y-coord));
+  }
+
+  // Combine right side descending and left side ascending to create a closed polygon
+  $closed-polygon: $right-points;
+  @for $i from $n through 1 {
+    $closed-polygon: list.append($closed-polygon, list.nth($left-points, $i));
+  }
+
+  @return (
+    "polygon": $closed-polygon,
+    "max-density": $max-dens,
+    "x-center": $x-center
+  );
+}

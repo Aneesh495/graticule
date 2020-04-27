@@ -1,0 +1,118 @@
+// Graticule Analytical Charts - Financial Candlesticks and Bollinger Bands
+// OHLC candlestick geometry, moving averages, Bollinger volatility bands, and volume profiles.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+@use "../scales" as s;
+
+/// Computes the geometry of a single financial candlestick.
+/// @param {Map} $candle - ("open", "high", "low", "close", "volume")
+/// @param {Map} $y-scale - Linear scale for price
+/// @param {Number} $x-center - X coordinate center for this bar
+/// @param {Number} $bar-width - Width of the candle body in pixels
+/// @return {Map} Candlestick geometry map
+@function candle-geometry($candle, $y-scale, $x-center, $bar-width: 8) {
+  $o: map.get($candle, "open");
+  $h: map.get($candle, "high");
+  $l: map.get($candle, "low");
+  $c: map.get($candle, "close");
+
+  $is-bullish: $c >= $o;
+
+  $y-open: s.scale-apply($y-scale, $o);
+  $y-close: s.scale-apply($y-scale, $c);
+  $y-high: s.scale-apply($y-scale, $h);
+  $y-low: s.scale-apply($y-scale, $l);
+
+  $body-top: $y-close;
+  $body-bottom: $y-open;
+  @if $is-bullish {
+    $body-top: $y-close;
+    $body-bottom: $y-open;
+  } @else {
+    $body-top: $y-open;
+    $body-bottom: $y-close;
+  }
+
+  $half-w: 0.5 * $bar-width;
+  $body-left: $x-center - $half-w;
+  $body-right: $x-center + $half-w;
+
+  $body-height: m.abs($body-bottom - $body-top);
+  @if $body-height < 1 {
+    $body-height: 1; // Doji minimum 1px height
+  }
+
+  @return (
+    "is-bullish": $is-bullish,
+    "x-center": $x-center,
+    "wick-top": m.vec2($x-center, $y-high),
+    "wick-bottom": m.vec2($x-center, $y-low),
+    "body-rect": (
+      "x": $body-left,
+      "y": $body-top,
+      "width": $bar-width,
+      "height": $body-height
+    )
+  );
+}
+
+/// Computes a Simple Moving Average (SMA) series for an array of closing prices.
+/// @param {List} $closes - List of numbers
+/// @param {Number} $period - Window size (e.g. 20)
+/// @return {List} SMA values (first period-1 values are null/0)
+@function calculate-sma($closes, $period: 20) {
+  $sma-series: ();
+  $len: list.length($closes);
+
+  @for $i from 1 through $len {
+    @if $i < $period {
+      $sma-series: list.append($sma-series, list.nth($closes, $i));
+    } @else {
+      $sum: 0;
+      @for $j from ($i - $period + 1) through $i {
+        $sum: $sum + list.nth($closes, $j);
+      }
+      $sma-series: list.append($sma-series, math.div($sum, $period));
+    }
+  }
+
+  @return $sma-series;
+}
+
+/// Computes Bollinger Bands (Middle SMA, Upper Band +2sd, Lower Band -2sd).
+/// @param {List} $closes - List of closing prices
+/// @param {Number} $period - Moving average period (default 20)
+/// @param {Number} $multiplier - Standard deviation multiplier (default 2)
+/// @return {Map} Bollinger series ("middle", "upper", "lower")
+@function calculate-bollinger-bands($closes, $period: 20, $multiplier: 2) {
+  $sma: calculate-sma($closes, $period);
+  $upper: ();
+  $lower: ();
+  $len: list.length($closes);
+
+  @for $i from 1 through $len {
+    @if $i < $period {
+      $upper: list.append($upper, list.nth($closes, $i));
+      $lower: list.append($lower, list.nth($closes, $i));
+    } @else {
+      $mean: list.nth($sma, $i);
+      $sum-sq: 0;
+      @for $j from ($i - $period + 1) through $i {
+        $diff: list.nth($closes, $j) - $mean;
+        $sum-sq: $sum-sq + ($diff * $diff);
+      }
+      $sd: m.sqrt(math.div($sum-sq, $period));
+      $upper: list.append($upper, $mean + ($multiplier * $sd));
+      $lower: list.append($lower, $mean - ($multiplier * $sd));
+    }
+  }
+
+  @return (
+    "middle": $sma,
+    "upper": $upper,
+    "lower": $lower
+  );
+}

@@ -1,0 +1,66 @@
+// Graticule Analytical Charts - Spider and Radar Diagrams
+// Equiangular radial multi-metric profiling, concentric polygon rings, and spoke lines.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Generates a closed polygon for a multi-metric observation on a radar chart.
+/// @param {List} $normalized-values - List of metric values normalized to [0, 1]
+/// @param {Map} $center - Center point vec2
+/// @param {Number} $radius - Maximum chart radius in pixels
+/// @return {List} Closed polygon vertices vec2
+@function radar-polygon($normalized-values, $center, $radius: 150) {
+  $k: list.length($normalized-values);
+  @if $k < 3 {
+    @return ();
+  }
+
+  $cx: map.get($center, "x");
+  $cy: map.get($center, "y");
+  $polygon: ();
+
+  @for $i from 1 through $k {
+    $val: m.clamp(list.nth($normalized-values, $i), 0, 1);
+    $angle-rad: (($i - 1) * math.div(m.$TAU, $k)) - m.$HALF_PI;
+
+    $r: $radius * $val;
+    $x: $cx + ($r * m.cos($angle-rad));
+    $y: $cy + ($r * m.sin($angle-rad));
+
+    $polygon: list.append($polygon, m.vec2($x, $y));
+  }
+
+  // Close polygon
+  $polygon: list.append($polygon, list.nth($polygon, 1));
+  @return $polygon;
+}
+
+/// Generates concentric polygonal grid rings for radar chart background.
+/// @param {Number} $num-spokes - Number of metric axes
+/// @param {Map} $center - Center point vec2
+/// @param {Number} $max-radius - Maximum outer radius
+/// @param {Number} $ring-levels - Number of concentric levels (default 4)
+/// @return {List} List of closed polygon rings
+@function radar-grid-rings($num-spokes, $center, $max-radius: 150, $ring-levels: 4) {
+  $rings: ();
+  $cx: map.get($center, "x");
+  $cy: map.get($center, "y");
+
+  @for $lvl from 1 through $ring-levels {
+    $ring-pts: ();
+    $r: $max-radius * math.div($lvl, $ring-levels);
+
+    @for $i from 1 through $num-spokes {
+      $angle-rad: (($i - 1) * math.div(m.$TAU, $num-spokes)) - m.$HALF_PI;
+      $x: $cx + ($r * m.cos($angle-rad));
+      $y: $cy + ($r * m.sin($angle-rad));
+      $ring-pts: list.append($ring-pts, m.vec2($x, $y));
+    }
+    $ring-pts: list.append($ring-pts, list.nth($ring-pts, 1));
+    $rings: list.append($rings, $ring-pts);
+  }
+
+  @return $rings;
+}
