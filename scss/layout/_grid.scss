@@ -1,0 +1,28 @@
+// Graticule Layout Engine - Responsive Multi-Viewport Grid
+// Modular grid topology for map projection comparisons and high-density telemetry dashboards.
+
+@use "sass:math";
+
+/// Mixin for a responsive analytical dashboard grid layout.
+@mixin dashboard-grid($cols: 2, $gap: 24px) {
+  display: grid;
+  grid-template-columns: repeat(#{$cols}, minmax(0, 1fr));
+  gap: #{$gap};
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+/// Mixin for an analytical panel tile.
+@mixin panel-tile($bg: #0f172a, $border: #1e293b, $radius: 8px) {
+  background: #{$bg};
+  border: 1px solid #{$border};
+  border-radius: #{$radius};
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}

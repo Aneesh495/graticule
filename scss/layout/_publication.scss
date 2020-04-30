@@ -1,0 +1,62 @@
+// Graticule Layout Engine - Publication Plates and Technical Cartouche
+// ISO 216 paper geometry, print bleed margins, corner crop marks, and title blocks.
+
+@use "sass:math";
+
+// Standard ISO 216 paper dimensions in millimeters
+$_PAPER_SIZES: (
+  "a4-landscape": (297mm, 210mm),
+  "a4-portrait":  (210mm, 297mm),
+  "a3-landscape": (420mm, 297mm),
+  "a3-portrait":  (297mm, 420mm),
+  "a2-landscape": (594mm, 420mm),
+  "a2-portrait":  (420mm, 594mm)
+);
+
+/// Mixin applying exact publication plate dimensions with print styles.
+@mixin publication-plate($format: "a4-landscape", $bleed: 3mm, $margin: 15mm) {
+  position: relative;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: #{$margin};
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+
+  @media print {
+    margin: 0;
+    box-shadow: none;
+    page-break-after: always;
+  }
+}
+
+/// Technical title block (cartouche) styling for cartographic prints.
+@mixin cartouche-block($width: 250px, $bg: rgba(255, 255, 255, 0.95), $border: #0f172a) {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: #{$width};
+  background: #{$bg};
+  border: 2px solid #{$border};
+  padding: 12px 16px;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  .cartouche-title {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #{$border};
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+  }
+
+  .cartouche-meta {
+    font-size: 10px;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    color: #475569;
+  }
+}

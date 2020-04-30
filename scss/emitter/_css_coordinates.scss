@@ -1,0 +1,51 @@
+// Graticule Vector Emitter - CSS Hardware-Accelerated Coordinate System
+// Custom property bindings, aspect-ratio viewports, and CSS clip-path polygon emitters.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Generates a CSS clip-path polygon() string from a list of normalized [0, 1] points.
+/// Enables pure CSS vector masking without external assets.
+/// @param {List} $normalized-points - List of vec2 points with x and y in [0, 1]
+/// @return {String} CSS clip-path value, e.g. "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)"
+@function polygon-to-css-clip-path($normalized-points) {
+  $str: "";
+  $len: list.length($normalized-points);
+
+  @for $i from 1 through $len {
+    $pt: list.nth($normalized-points, $i);
+    $px: m.round-to(map.get($pt, "x") * 100, 2) * 1%;
+    $py: m.round-to(map.get($pt, "y") * 100, 2) * 1%;
+
+    @if $i == 1 {
+      $str: "#{$px} #{$py}";
+    } @else {
+      $str: "#{$str}, #{$px} #{$py}";
+    }
+  }
+
+  @return polygon(unquote($str));
+}
+
+/// Mixin setting standard CSS coordinate variables on an element.
+@mixin bind-coordinate-vars($x, $y, $width: 0, $height: 0) {
+  --grat-x: #{$x};
+  --grat-y: #{$y};
+  @if $width > 0 {
+    --grat-width: #{$width};
+  }
+  @if $height > 0 {
+    --grat-height: #{$height};
+  }
+}
+
+/// Mixin creating a responsive aspect-ratio viewport container for a map projection.
+@mixin projection-viewport($aspect-ratio: 2.0) {
+  position: relative;
+  width: 100%;
+  aspect-ratio: #{$aspect-ratio};
+  overflow: hidden;
+  box-sizing: border-box;
+}

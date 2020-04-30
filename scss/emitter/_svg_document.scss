@@ -1,0 +1,65 @@
+// Graticule Vector Emitter - SVG Document and Data URI Serialization
+// Generates standalone SVG vector documents and CSS data:image/svg+xml URIs.
+
+@use "sass:string";
+@use "sass:math";
+@use "../math" as m;
+
+/// Generates the opening XML root tag for an SVG document.
+@function svg-doc-open($width: 800, $height: 400, $viewbox: "0 0 800 400") {
+  @return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="#{$viewbox}" width="#{$width}" height="#{$height}">';
+}
+
+/// Generates the closing SVG tag.
+@function svg-doc-close() {
+  @return '</svg>';
+}
+
+/// Generates an SVG path element tag string.
+@function svg-path-element($d, $fill: "none", $stroke: "#000", $stroke-width: 1, $opacity: 1) {
+  @return '<path d="#{$d}" fill="#{$fill}" stroke="#{$stroke}" stroke-width="#{$stroke-width}" opacity="#{$opacity}" stroke-linejoin="round" stroke-linecap="round"/>';
+}
+
+/// Generates an SVG circle element tag string.
+@function svg-circle-element($cx, $cy, $r, $fill: "#000", $stroke: "none", $stroke-width: 0) {
+  @return '<circle cx="#{$cx}" cy="#{$cy}" r="#{$r}" fill="#{$fill}" stroke="#{$stroke}" stroke-width="#{$stroke-width}"/>';
+}
+
+/// Generates an SVG rect element tag string.
+@function svg-rect-element($x, $y, $w, $h, $fill: "#000", $stroke: "none", $stroke-width: 0, $rx: 0) {
+  @return '<rect x="#{$x}" y="#{$y}" width="#{$w}" height="#{$h}" rx="#{$rx}" fill="#{$fill}" stroke="#{$stroke}" stroke-width="#{$stroke-width}"/>';
+}
+
+/// Generates an SVG text element tag string.
+@function svg-text-element($text, $x, $y, $font-size: 12, $fill: "#fff", $anchor: "middle") {
+  @return '<text x="#{$x}" y="#{$y}" font-size="#{$font-size}" fill="#{$fill}" text-anchor="#{$anchor}" font-family="system-ui, -apple-system, sans-serif">#{$text}</text>';
+}
+
+/// Encodes an SVG markup string into a valid CSS data URI for background-image.
+/// Replaces characters unsafe in URI strings (<, >, #, quotes).
+@function svg-encode-data-uri($svg-string) {
+  $encoded: $svg-string;
+
+  // Replace double quotes with single quotes
+  $encoded: _str-replace($encoded, '"', "'");
+
+  // Percent-encode reserved characters
+  $encoded: _str-replace($encoded, "%", "%25");
+  $encoded: _str-replace($encoded, "#", "%23");
+  $encoded: _str-replace($encoded, "<", "%3C");
+  $encoded: _str-replace($encoded, ">", "%3E");
+  $encoded: _str-replace($encoded, "&", "%26");
+
+  @return url("data:image/svg+xml,#{$encoded}");
+}
+
+/// Internal helper for string replacement.
+@function _str-replace($string, $search, $replace: "") {
+  $index: string.index($string, $search);
+  @if $index {
+    $before: string.slice($string, 1, $index - 1);
+    $after: _str-replace(string.slice($string, $index + string.length($search)), $search, $replace);
+    @return "#{$before}#{$replace}#{$after}";
+  }
+  @return $string;
+}

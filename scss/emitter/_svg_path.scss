@@ -1,0 +1,83 @@
+// Graticule Vector Emitter - SVG Path Data Serialization
+// Generates standard W3C Scalable Vector Graphics path syntax directly from Sass coordinate lists.
+
+@use "sass:math";
+@use "sass:list";
+@use "sass:map";
+@use "../math" as m;
+
+/// Rounds and formats a coordinate for clean SVG path output.
+@function _fmt($n, $decimals: 2) {
+  @return m.round-to($n, $decimals);
+}
+
+/// Emits an SVG MoveTo command: M x y.
+@function svg-moveto($p, $decimals: 2) {
+  $x: _fmt(map.get($p, "x"), $decimals);
+  $y: _fmt(map.get($p, "y"), $decimals);
+  @return "M #{$x} #{$y}";
+}
+
+/// Emits an SVG LineTo command: L x y.
+@function svg-lineto($p, $decimals: 2) {
+  $x: _fmt(map.get($p, "x"), $decimals);
+  $y: _fmt(map.get($p, "y"), $decimals);
+  @return "L #{$x} #{$y}";
+}
+
+/// Emits an SVG ClosePath command: Z.
+@function svg-closepath() {
+  @return "Z";
+}
+
+/// Emits an SVG Cubic Bezier command: C x1 y1, x2 y2, x3 y3.
+@function svg-cubic($p1, $p2, $p3, $decimals: 2) {
+  $x1: _fmt(map.get($p1, "x"), $decimals); $y1: _fmt(map.get($p1, "y"), $decimals);
+  $x2: _fmt(map.get($p2, "x"), $decimals); $y2: _fmt(map.get($p2, "y"), $decimals);
+  $x3: _fmt(map.get($p3, "x"), $decimals); $y3: _fmt(map.get($p3, "y"), $decimals);
+
+  @return "C #{$x1} #{$y1}, #{$x2} #{$y2}, #{$x3} #{$y3}";
+}
+
+/// Converts an ordered list of vec2 points into a continuous SVG path d-string.
+/// @param {List} $points - Ordered list of vec2 vertices
+/// @param {Boolean} $closed - Whether to append Z to close the contour
+/// @param {Number} $decimals - Coordinate precision
+/// @return {String} SVG path data string
+@function polyline-to-svg-path($points, $closed: false, $decimals: 2) {
+  $len: list.length($points);
+  @if $len == 0 {
+    @return "";
+  }
+
+  $d: svg-moveto(list.nth($points, 1), $decimals);
+
+  @if $len > 1 {
+    @for $i from 2 through $len {
+      $d: "#{$d} #{svg-lineto(list.nth($points, $i), $decimals)}";
+    }
+  }
+
+  @if $closed {
+    $d: "#{$d} #{svg-closepath()}";
+  }
+
+  @return $d;
+}
+
+/// Formats a list of vec2 vertices as an SVG points attribute string: "x1,y1 x2,y2 ...".
+@function polygon-to-svg-points($points, $decimals: 2) {
+  $str: "";
+  $len: list.length($points);
+  @for $i from 1 through $len {
+    $pt: list.nth($points, $i);
+    $x: _fmt(map.get($pt, "x"), $decimals);
+    $y: _fmt(map.get($pt, "y"), $decimals);
+    @if $i == 1 {
+      $str: "#{$x},#{$y}";
+    } @else {
+      $str: "#{$str} #{$x},#{$y}";
+    }
+  }
+  @return $str;
+}
