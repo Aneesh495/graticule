@@ -1,0 +1,61 @@
+// Graticule Geographic Datasets: Global Aviation Network
+// Major intercontinental flight corridors for geodesic great-circle routing.
+
+$GLOBAL_FLIGHT_ROUTES: (
+  "LHR-SIN": (
+    "name": "London to Singapore",
+    "from-lon": -0.45,
+    "from-lat": 51.47,
+    "to-lon": 103.99,
+    "to-lat": 1.36
+  ),
+  "JFK-CDG": (
+    "name": "New York to Paris",
+    "from-lon": -73.78,
+    "from-lat": 40.64,
+    "to-lon": 2.55,
+    "to-lat": 49.01
+  ),
+  "HND-SFO": (
+    "name": "Tokyo to San Francisco",
+    "from-lon": 139.78,
+    "from-lat": 35.55,
+    "to-lon": -122.37,
+    "to-lat": 37.62
+  ),
+  "DXB-JFK": (
+    "name": "Dubai to New York",
+    "from-lon": 55.36,
+    "from-lat": 25.25,
+    "to-lon": -73.78,
+    "to-lat": 40.64
+  ),
+  "SYD-LAX": (
+    "name": "Sydney to Los Angeles",
+    "from-lon": 151.18,
+    "from-lat": -33.95,
+    "to-lon": -118.41,
+    "to-lat": 33.94
+  ),
+  "FRA-EZE": (
+    "name": "Frankfurt to Buenos Aires",
+    "from-lon": 8.57,
+    "from-lat": 50.03,
+    "to-lon": -58.53,
+    "to-lat": -34.82
+  ),
+  "CPT-DXB": (
+    "name": "Cape Town to Dubai",
+    "from-lon": 18.6,
+    "from-lat": -33.97,
+    "to-lon": 55.36,
+    "to-lat": 25.25
+  ),
+  "SIN-SYD": (
+    "name": "Singapore to Sydney",
+    "from-lon": 103.99,
+    "from-lat": 1.36,
+    "to-lon": 151.18,
+    "to-lat": -33.95
+  ),
+);

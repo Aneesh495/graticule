@@ -1,0 +1,29 @@
+// Graticule Analytical Datasets: Multi-Asset Financial OHLCV Series
+// 24-period candlestick and trading volume telemetry for technical charting.
+
+$FINANCIAL_OHLCV_SERIES: (
+  ("t": 1, "open": 100.0, "high": 104.72, "low": 98.6, "close": 101.81, "volume": 32120),
+  ("t": 2, "open": 101.81, "high": 104.72, "low": 100.12, "close": 102.93, "volume": 24240),
+  ("t": 3, "open": 102.93, "high": 105.46, "low": 100.36, "close": 103.24, "volume": 14920),
+  ("t": 4, "open": 103.24, "high": 105.95, "low": 102.16, "close": 103.24, "volume": 11600),
+  ("t": 5, "open": 103.24, "high": 104.69, "low": 101.28, "close": 103.65, "volume": 16920),
+  ("t": 6, "open": 103.65, "high": 107.89, "low": 101.16, "close": 104.89, "volume": 27280),
+  ("t": 7, "open": 104.89, "high": 108.06, "low": 104.15, "close": 106.76, "volume": 35240),
+  ("t": 8, "open": 106.76, "high": 111.05, "low": 104.58, "close": 108.48, "volume": 33840),
+  ("t": 9, "open": 108.48, "high": 111.56, "low": 106.12, "close": 109.16, "volume": 21760),
+  ("t": 10, "open": 109.16, "high": 110.71, "low": 107.92, "close": 108.33, "volume": 23960),
+  ("t": 11, "open": 108.33, "high": 111.3, "low": 103.9, "close": 106.27, "volume": 39120),
+  ("t": 12, "open": 106.27, "high": 107.04, "low": 101.73, "close": 103.9, "volume": 43240),
+  ("t": 13, "open": 103.9, "high": 106.72, "low": 101.54, "close": 102.3, "volume": 34400),
+  ("t": 14, "open": 102.3, "high": 104.31, "low": 99.65, "close": 102.15, "volume": 17400),
+  ("t": 15, "open": 102.15, "high": 105.39, "low": 100.2, "close": 103.38, "volume": 30760),
+  ("t": 16, "open": 103.38, "high": 108.1, "low": 102.29, "close": 105.28, "volume": 39200),
+  ("t": 17, "open": 105.28, "high": 107.71, "low": 102.7, "close": 106.94, "volume": 36720),
+  ("t": 18, "open": 106.94, "high": 110.77, "low": 105.26, "close": 107.8, "volume": 27520),
+  ("t": 19, "open": 107.8, "high": 109.5, "low": 106.38, "close": 107.95, "volume": 19400),
+  ("t": 20, "open": 107.95, "high": 110.41, "low": 105.35, "close": 108.0, "volume": 18600),
+  ("t": 21, "open": 108.0, "high": 111.2, "low": 106.62, "close": 108.63, "volume": 25960),
+  ("t": 22, "open": 108.63, "high": 111.41, "low": 106.92, "close": 110.11, "volume": 36560),
+  ("t": 23, "open": 110.11, "high": 115.03, "low": 107.54, "close": 112.03, "volume": 42240),
+  ("t": 24, "open": 112.03, "high": 114.57, "low": 110.97, "close": 113.53, "volume": 37600),
+);
