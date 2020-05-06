@@ -1,0 +1,272 @@
+// Graticule: Declarative Compile-Time Cartographic & Analytical Graphics Engine
+// Master Library Entrypoint and High-Density Vector Styling System.
+
+@forward "math";
+@forward "geometry";
+@forward "projections";
+@forward "color";
+@forward "scales";
+@forward "statistics";
+@forward "cartography";
+@forward "symbology";
+@forward "charts";
+@forward "emitter";
+@forward "layout";
+@forward "data";
+
+@use "sass:color";
+@use "math" as m;
+@use "color" as c;
+@use "layout" as lay;
+@use "emitter" as emit;
+
+// Global CSS Custom Properties Root
+:root {
+  --grat-font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --grat-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+
+  --grat-bg-base: #090d16;
+  --grat-bg-surface: #0f172a;
+  --grat-bg-panel: #141e33;
+  --grat-bg-card: #1e293b;
+
+  --grat-border-subtle: #24324d;
+  --grat-border-strong: #38bdf8;
+
+  --grat-text-primary: #f8fafc;
+  --grat-text-secondary: #94a3b8;
+  --grat-text-muted: #64748b;
+
+  --grat-accent-cyan: #38bdf8;
+  --grat-accent-emerald: #10b981;
+  --grat-accent-amber: #f59e0b;
+  --grat-accent-rose: #f43f5e;
+  --grat-accent-indigo: #6366f1;
+
+  --grat-bullish: #10b981;
+  --grat-bearish: #ef4444;
+}
+
+// 1. Core Viewport Container
+.graticule-viewport {
+  position: relative;
+  width: 100%;
+  background: var(--grat-bg-base);
+  border: 1px solid var(--grat-border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+  box-sizing: border-box;
+  font-family: var(--grat-font-sans);
+  color: var(--grat-text-primary);
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}
+
+// 2. Dashboard Panel and Tile Grid
+.graticule-grid {
+  @include lay.dashboard-grid(2, 24px);
+}
+
+.graticule-panel {
+  @include lay.panel-tile(var(--grat-bg-panel), var(--grat-border-subtle), 8px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--grat-border-subtle);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--grat-text-primary);
+    }
+
+    .panel-tag {
+      font-family: var(--grat-font-mono);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--grat-accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+  }
+
+  .panel-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+
+// 3. Telemetry HUD Overlay
+.graticule-hud {
+  @include lay.telemetry-hud-overlay(var(--grat-accent-cyan), 14px);
+}
+
+// 4. Cartographic Graticule Wireframe Lines
+.graticule-wireframe {
+  fill: none;
+  stroke: var(--grat-border-subtle);
+  stroke-width: 0.5px;
+  stroke-dasharray: 2 2;
+  opacity: 0.6;
+}
+
+.graticule-equator,
+.graticule-prime-meridian {
+  fill: none;
+  stroke: var(--grat-accent-cyan);
+  stroke-width: 1px;
+  opacity: 0.8;
+}
+
+.graticule-outline {
+  fill: none;
+  stroke: var(--grat-text-muted);
+  stroke-width: 1.5px;
+}
+
+// 5. Landmass and Ocean Styling
+.graticule-land {
+  fill: #1a2744;
+  stroke: var(--grat-accent-cyan);
+  stroke-width: 0.8px;
+  stroke-linejoin: round;
+  transition: fill 0.2s ease;
+
+  &:hover {
+    fill: #22355c;
+  }
+}
+
+.graticule-ocean {
+  fill: var(--grat-bg-base);
+}
+
+// 6. Flight Corridors and Geodesic Arcs
+.graticule-flight-path {
+  fill: none;
+  stroke: var(--grat-accent-amber);
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+// 7. Meteorological Streamlines & Wind Barbs
+.graticule-wind-staff {
+  fill: none;
+  stroke: var(--grat-accent-cyan);
+  stroke-width: 1.5px;
+}
+
+.graticule-wind-pennant {
+  fill: var(--grat-accent-cyan);
+  stroke: var(--grat-accent-cyan);
+  stroke-width: 1px;
+}
+
+// 8. Financial Candlestick Styling
+.graticule-candle {
+  &.bullish {
+    .candle-body {
+      fill: var(--grat-bullish);
+      stroke: var(--grat-bullish);
+    }
+    .candle-wick {
+      stroke: var(--grat-bullish);
+      stroke-width: 1px;
+    }
+  }
+
+  &.bearish {
+    .candle-body {
+      fill: var(--grat-bearish);
+      stroke: var(--grat-bearish);
+    }
+    .candle-wick {
+      stroke: var(--grat-bearish);
+      stroke-width: 1px;
+    }
+  }
+}
+
+.graticule-sma-line {
+  fill: none;
+  stroke: var(--grat-accent-amber);
+  stroke-width: 1.5px;
+}
+
+.graticule-bollinger-band {
+  fill: rgba(56, 189, 248, 0.08);
+  stroke: rgba(56, 189, 248, 0.3);
+  stroke-width: 1px;
+}
+
+// 9. Violin and Box Plot Distribution Styling
+.graticule-violin-fill {
+  fill: rgba(99, 102, 241, 0.25);
+  stroke: var(--grat-accent-indigo);
+  stroke-width: 1.5px;
+}
+
+.graticule-boxplot-body {
+  fill: rgba(56, 189, 248, 0.2);
+  stroke: var(--grat-accent-cyan);
+  stroke-width: 1.5px;
+}
+
+.graticule-boxplot-median {
+  stroke: #ffffff;
+  stroke-width: 2px;
+}
+
+.graticule-boxplot-whisker {
+  stroke: var(--grat-text-secondary);
+  stroke-width: 1px;
+}
+
+// 10. Ternary Mixture Diagram Styling
+.graticule-ternary-frame {
+  fill: none;
+  stroke: var(--grat-border-subtle);
+  stroke-width: 1.5px;
+}
+
+.graticule-ternary-gridline {
+  fill: none;
+  stroke: var(--grat-border-subtle);
+  stroke-width: 0.5px;
+  stroke-dasharray: 2 2;
+}
+
+// 11. Sankey Flow Ribbon Styling
+.graticule-sankey-ribbon {
+  fill-opacity: 0.6;
+  transition: fill-opacity 0.2s ease;
+
+  &:hover {
+    fill-opacity: 0.85;
+  }
+}
+
+// 12. Publication Plate Layout
+.graticule-publication-sheet {
+  @include lay.publication-plate("a4-landscape");
+}
+
+.graticule-title-cartouche {
+  @include lay.cartouche-block(260px, rgba(15, 23, 42, 0.95), var(--grat-accent-cyan));
+  color: var(--grat-text-primary);
+}
