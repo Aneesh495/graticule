@@ -1,0 +1,232 @@
+#!/usr/bin/env node
+/**
+ * Graticule Command-Line Interface
+ * Compiles cartographic projections, generates standalone SVG maps,
+ * executes precision test suites, and hosts the interactive showroom.
+ */
+
+const fs = require("fs");
+const path = require("path");
+const http = require("http");
+const { execSync } = require("child_process");
+
+const VERSION = "1.0.0";
+const ROOT_DIR = path.resolve(__dirname, "..");
+
+function printUsage() {
+  console.log(`
+Graticule CLI v${VERSION}
+A declarative compile-time cartographic projection & analytical graphics engine.
+
+USAGE:
+  graticule <command> [options]
+
+COMMANDS:
+  project <lon> <lat>    Project a coordinate pair using the specified projection
+  list-projections       List all 18 supported cartographic projections
+  build                  Compile Sass library stylesheets to dist/
+  test                   Run the full mathematical, geometric, and projection test suite
+  serve [port]           Launch the interactive showroom on a local HTTP server (default 8080)
+  version, --version     Print version information
+  help, --help           Display this help manual
+
+OPTIONS:
+  --proj=<name>          Projection identifier (default: equirectangular)
+  --out=<path>           Output file destination
+  --port=<number>        Port for showroom server (default: 8080)
+`);
+}
+
+function listProjections() {
+  console.log(`
+Supported Projections across 4 Canonical Geometric Families:
+
+CYLINDRICAL:
+  • equirectangular         Plate Carree (Equirectangular)
+  • mercator                Conformal Mercator
+  • web-mercator            Web Mercator (EPSG:3857)
+  • gall-peters             Gall-Peters Equal-Area
+  • lambert-cylindrical     Lambert Cylindrical Equal-Area
+  • miller                  Miller Cylindrical
+  • transverse-mercator     Transverse Mercator (Gauss-Kruger)
+
+CONIC:
+  • lambert-conformal-conic Lambert Conformal Conic (dual standard parallels)
+  • albers                  Albers Equal-Area Conic
+  • equidistant-conic       Equidistant Conic
+
+AZIMUTHAL:
+  • orthographic            Orthographic (3D Globe with horizon culling)
+  • stereographic           Stereographic Conformal
+  • azimuthal-equidistant   Azimuthal Equidistant
+  • gnomonic                Gnomonic (straight geodesic lines)
+  • laea                    Lambert Azimuthal Equal-Area
+
+PSEUDOCYLINDRICAL & COMPROMISE:
+  • robinson                Robinson
+  • mollweide               Mollweide Equal-Area (Newton-Raphson)
+  • sinusoidal              Sinusoidal (Sanson-Flamsteed)
+  • natural-earth           Natural Earth (Patterson-Jenny)
+  • winkel-tripel           Winkel Tripel (National Geographic standard)
+`);
+}
+
+function runBuild() {
+  console.log("Compiling Graticule Sass library stylesheets...");
+  try {
+    execSync("npm run build", { cwd: ROOT_DIR, stdio: "inherit" });
+    execSync("npm run build:min", { cwd: ROOT_DIR, stdio: "inherit" });
+    console.log("Build complete: dist/graticule.css and dist/graticule.min.css");
+  } catch (err) {
+    console.error("Build failed:", err.message);
+    process.exit(1);
+  }
+}
+
+function runTests() {
+  console.log("Executing Graticule test harness...");
+  try {
+    execSync("node test/run_all_tests.js", { cwd: ROOT_DIR, stdio: "inherit" });
+  } catch (err) {
+    process.exit(1);
+  }
+}
+
+function runProject(args) {
+  const lon = parseFloat(args[0]);
+  const lat = parseFloat(args[1]);
+
+  if (isNaN(lon) || isNaN(lat)) {
+    console.error("Error: Longitude and latitude must be valid numbers.");
+    console.log("Example: graticule project -122.4194 37.7749 --proj=mercator");
+    process.exit(1);
+  }
+
+  let proj = "equirectangular";
+  for (const arg of args) {
+    if (arg.startsWith("--proj=")) {
+      proj = arg.split("=")[1];
+    }
+  }
+
+  // Compile a small one-shot Sass calculation
+  const sassCode = `
+    @use "scss/projections" as p;
+    $pt: p.project-point(${lon}, ${lat}, "${proj}");
+    .projection-output {
+      --x: #{map.get($pt, "x")};
+      --y: #{map.get($pt, "y")};
+    }
+  `;
+
+  const tmpScss = path.join(ROOT_DIR, "tmp_proj.scss");
+  const tmpCss = path.join(ROOT_DIR, "tmp_proj.css");
+  fs.writeFileSync(tmpScss, sassCode, "utf8");
+
+  try {
+    execSync(`npx sass ${tmpScss} ${tmpCss} --no-source-map`, { cwd: ROOT_DIR });
+    const output = fs.readFileSync(tmpCss, "utf8");
+    const xMatch = output.match(/--x:\s*([^;]+);/);
+    const yMatch = output.match(/--y:\s*([^;]+);/);
+
+    const x = xMatch ? parseFloat(xMatch[1].trim()) : 0;
+    const y = yMatch ? parseFloat(yMatch[1].trim()) : 0;
+
+    console.log(JSON.stringify({
+      input: { lon, lat },
+      projection: proj,
+      projected: { x, y }
+    }, null, 2));
+  } finally {
+    if (fs.existsSync(tmpScss)) fs.unlinkSync(tmpScss);
+    if (fs.existsSync(tmpCss)) fs.unlinkSync(tmpCss);
+  }
+}
+
+function startServer(port = 8080) {
+  const mimeTypes = {
+    ".html": "text/html",
+    ".css": "text/css",
+    ".js": "text/javascript",
+    ".json": "application/json",
+    ".svg": "image/svg+xml"
+  };
+
+  const showroomDir = path.join(ROOT_DIR, "showroom");
+
+  const server = http.createServer((req, res) => {
+    let filePath = path.join(showroomDir, req.url === "/" ? "index.html" : req.url);
+    const ext = path.extname(filePath);
+    const contentType = mimeTypes[ext] || "text/plain";
+
+    fs.readFile(filePath, (err, content) => {
+      if (err) {
+        if (err.code === "ENOENT") {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end("404 Not Found");
+        } else {
+          res.writeHead(500);
+          res.end(`Server Error: ${err.code}`);
+        }
+      } else {
+        res.writeHead(200, { "Content-Type": contentType });
+        res.end(content, "utf-8");
+      }
+    });
+  });
+
+  server.listen(port, () => {
+    console.log(`Graticule Showroom server running at http://localhost:${port}/`);
+    console.log("Press Ctrl+C to terminate server.");
+  });
+}
+
+function main() {
+  const args = process.argv.slice(2);
+  const cmd = args[0];
+
+  if (!cmd || cmd === "help" || cmd === "--help" || cmd === "-h") {
+    printUsage();
+    return;
+  }
+
+  if (cmd === "version" || cmd === "--version" || cmd === "-v") {
+    console.log(`Graticule v${VERSION}`);
+    return;
+  }
+
+  if (cmd === "list-projections") {
+    listProjections();
+    return;
+  }
+
+  if (cmd === "build") {
+    runBuild();
+    return;
+  }
+
+  if (cmd === "test") {
+    runTests();
+    return;
+  }
+
+  if (cmd === "project") {
+    runProject(args.slice(1));
+    return;
+  }
+
+  if (cmd === "serve") {
+    let port = 8080;
+    if (args[1]) {
+      port = parseInt(args[1], 10);
+    }
+    startServer(port);
+    return;
+  }
+
+  console.error(`Unknown command: ${cmd}`);
+  printUsage();
+  process.exit(1);
+}
+
+main();
