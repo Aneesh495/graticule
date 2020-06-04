@@ -111,6 +111,7 @@ function runProject(args) {
 
   // Compile a small one-shot Sass calculation
   const sassCode = `
+    @use "sass:map";
     @use "scss/projections" as p;
     $pt: p.project-point(${lon}, ${lat}, "${proj}");
     .projection-output {
