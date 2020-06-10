@@ -1,0 +1,156 @@
+{
+  "timestamp": "2026-11-14T23:32:08Z",
+  "modules": [
+    {
+      "module": "Math Kernel",
+      "path": "scss/math/index.scss",
+      "lines": 11,
+      "time_ms": 172.49787505716085,
+      "css_bytes": 0
+    },
+    {
+      "module": "Geodesy & Geometry",
+      "path": "scss/geometry/index.scss",
+      "lines": 9,
+      "time_ms": 169.92183297406882,
+      "css_bytes": 0
+    },
+    {
+      "module": "Projections Engine",
+      "path": "scss/projections/index.scss",
+      "lines": 8,
+      "time_ms": 173.25604101642966,
+      "css_bytes": 0
+    },
+    {
+      "module": "Colorimetry & Palettes",
+      "path": "scss/color/index.scss",
+      "lines": 8,
+      "time_ms": 195.12579101137817,
+      "css_bytes": 0
+    },
+    {
+      "module": "Continuous Scales",
+      "path": "scss/scales/index.scss",
+      "lines": 7,
+      "time_ms": 187.9804169293493,
+      "css_bytes": 0
+    },
+    {
+      "module": "Statistical Classification",
+      "path": "scss/statistics/index.scss",
+      "lines": 7,
+      "time_ms": 168.2260420639068,
+      "css_bytes": 0
+    },
+    {
+      "module": "Cartographic Symbology",
+      "path": "scss/cartography/index.scss",
+      "lines": 8,
+      "time_ms": 185.99070806521922,
+      "css_bytes": 0
+    },
+    {
+      "module": "Vector Emitter",
+      "path": "scss/emitter/index.scss",
+      "lines": 6,
+      "time_ms": 171.62516701500863,
+      "css_bytes": 0
+    },
+    {
+      "module": "Layout & Plates",
+      "path": "scss/layout/index.scss",
+      "lines": 6,
+      "time_ms": 153.7390419980511,
+      "css_bytes": 0
+    },
+    {
+      "module": "Curated Datasets",
+      "path": "scss/data/index.scss",
+      "lines": 8,
+      "time_ms": 158.94383389968425,
+      "css_bytes": 0
+    },
+    {
+      "module": "Master Entrypoint",
+      "path": "scss/graticule.scss",
+      "lines": 272,
+      "time_ms": 220.19012505188584,
+      "css_bytes": 5442
+    }
+  ],
+  "projections": [
+    {
+      "projection": "Equirectangular (Plate Carree)",
+      "id": "equirectangular",
+      "time_ms": 193.15150007605553,
+      "points_per_sec": 517.7283115100007
+    },
+    {
+      "projection": "Conformal Mercator",
+      "id": "mercator",
+      "time_ms": 229.69766706228256,
+      "points_per_sec": 435.3548787802228
+    },
+    {
+      "projection": "Web Mercator (EPSG:3857)",
+      "id": "web-mercator",
+      "time_ms": 245.0925000011921,
+      "points_per_sec": 408.0092210064103
+    },
+    {
+      "projection": "Gall-Peters Equal-Area",
+      "id": "gall-peters",
+      "time_ms": 209.75999999791384,
+      "points_per_sec": 476.73531655699156
+    },
+    {
+      "projection": "Lambert Conformal Conic",
+      "id": "lambert-conformal-conic",
+      "time_ms": 351.7447500489652,
+      "points_per_sec": 284.2970648064522
+    },
+    {
+      "projection": "Albers Equal-Area Conic",
+      "id": "albers-conic",
+      "time_ms": 191.21937500312924,
+      "points_per_sec": 522.959558875054
+    },
+    {
+      "projection": "Orthographic Azimuthal",
+      "id": "orthographic",
+      "time_ms": 251.82683300226927,
+      "points_per_sec": 397.09827109289375
+    },
+    {
+      "projection": "Stereographic Azimuthal",
+      "id": "stereographic",
+      "time_ms": 253.25833295937628,
+      "points_per_sec": 394.8537401769932
+    },
+    {
+      "projection": "Lambert Azimuthal Equal-Area",
+      "id": "lambert-azimuthal",
+      "time_ms": 192.9134160745889,
+      "points_per_sec": 518.3672656614798
+    },
+    {
+      "projection": "Robinson Pseudocylindrical",
+      "id": "robinson",
+      "time_ms": 196.26308395527303,
+      "points_per_sec": 509.5201705012915
+    },
+    {
+      "projection": "Mollweide Homolographic",
+      "id": "mollweide",
+      "time_ms": 469.4963749498129,
+      "points_per_sec": 212.99418980751355
+    },
+    {
+      "projection": "Winkel Tripel (Winkel III)",
+      "id": "winkel-tripel",
+      "time_ms": 283.32545794546604,
+      "points_per_sec": 352.9509869150121
+    }
+  ]
+}
