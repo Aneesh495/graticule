@@ -1,0 +1,202 @@
+[
+  {
+    "id": "equirectangular",
+    "name": "Plate Carree",
+    "family": "Cylindrical",
+    "aspect": 2,
+    "width": 800,
+    "height": 400,
+    "file": "assets/projections/equirectangular.svg",
+    "size": 12517
+  },
+  {
+    "id": "mercator",
+    "name": "Conformal Mercator",
+    "family": "Cylindrical",
+    "aspect": 1,
+    "width": 800,
+    "height": 800,
+    "file": "assets/projections/mercator.svg",
+    "size": 12654
+  },
+  {
+    "id": "web-mercator",
+    "name": "Web Mercator (EPSG:3857)",
+    "family": "Cylindrical",
+    "aspect": 1,
+    "width": 800,
+    "height": 800,
+    "file": "assets/projections/web-mercator.svg",
+    "size": 12512
+  },
+  {
+    "id": "gall-peters",
+    "name": "Gall-Peters Equal-Area",
+    "family": "Cylindrical",
+    "aspect": 1.57,
+    "width": 800,
+    "height": 510,
+    "file": "assets/projections/gall-peters.svg",
+    "size": 12345
+  },
+  {
+    "id": "lambert-cylindrical",
+    "name": "Lambert Cylindrical Equal-Area",
+    "family": "Cylindrical",
+    "aspect": 3.14,
+    "width": 800,
+    "height": 255,
+    "file": "assets/projections/lambert-cylindrical.svg",
+    "size": 12328
+  },
+  {
+    "id": "miller",
+    "name": "Miller Cylindrical",
+    "family": "Cylindrical",
+    "aspect": 1.36,
+    "width": 800,
+    "height": 588,
+    "file": "assets/projections/miller.svg",
+    "size": 12470
+  },
+  {
+    "id": "transverse-mercator",
+    "name": "Transverse Mercator",
+    "family": "Cylindrical",
+    "aspect": 1,
+    "width": 800,
+    "height": 800,
+    "file": "assets/projections/transverse-mercator.svg",
+    "size": 12453
+  },
+  {
+    "id": "lambert-conformal-conic",
+    "name": "Lambert Conformal Conic",
+    "family": "Conic",
+    "aspect": 1.4,
+    "width": 800,
+    "height": 571,
+    "file": "assets/projections/lambert-conformal-conic.svg",
+    "size": 12603
+  },
+  {
+    "id": "albers",
+    "name": "Albers Equal-Area Conic",
+    "family": "Conic",
+    "aspect": 1.4,
+    "width": 800,
+    "height": 571,
+    "file": "assets/projections/albers.svg",
+    "size": 12566
+  },
+  {
+    "id": "equidistant-conic",
+    "name": "Equidistant Conic",
+    "family": "Conic",
+    "aspect": 1.4,
+    "width": 800,
+    "height": 571,
+    "file": "assets/projections/equidistant-conic.svg",
+    "size": 12587
+  },
+  {
+    "id": "orthographic",
+    "name": "Orthographic (3D Globe)",
+    "family": "Azimuthal",
+    "aspect": 1,
+    "width": 800,
+    "height": 800,
+    "file": "assets/projections/orthographic.svg",
+    "size": 7667
+  },
+  {
+    "id": "stereographic",
+    "name": "Stereographic Azimuthal",
+    "family": "Azimuthal",
+    "aspect": 1,
+    "width": 800,
+    "height": 800,
+    "file": "assets/projections/stereographic.svg",
+    "size": 12417
+  },
+  {
+    "id": "azimuthal-equidistant",
+    "name": "Azimuthal Equidistant",
+    "family": "Azimuthal",
+    "aspect": 1,
+    "width": 800,
+    "height": 800,
+    "file": "assets/projections/azimuthal-equidistant.svg",
+    "size": 12397
+  },
+  {
+    "id": "gnomonic",
+    "name": "Gnomonic Geodesic",
+    "family": "Azimuthal",
+    "aspect": 1,
+    "width": 800,
+    "height": 800,
+    "file": "assets/projections/gnomonic.svg",
+    "size": 12871
+  },
+  {
+    "id": "laea",
+    "name": "Lambert Azimuthal Equal-Area",
+    "family": "Azimuthal",
+    "aspect": 1,
+    "width": 800,
+    "height": 800,
+    "file": "assets/projections/laea.svg",
+    "size": 12434
+  },
+  {
+    "id": "robinson",
+    "name": "Robinson Pseudocylindrical",
+    "family": "Pseudocylindrical",
+    "aspect": 1.97,
+    "width": 800,
+    "height": 406,
+    "file": "assets/projections/robinson.svg",
+    "size": 12416
+  },
+  {
+    "id": "mollweide",
+    "name": "Mollweide Equal-Area",
+    "family": "Pseudocylindrical",
+    "aspect": 2,
+    "width": 800,
+    "height": 400,
+    "file": "assets/projections/mollweide.svg",
+    "size": 12489
+  },
+  {
+    "id": "sinusoidal",
+    "name": "Sinusoidal (Sanson-Flamsteed)",
+    "family": "Pseudocylindrical",
+    "aspect": 2,
+    "width": 800,
+    "height": 400,
+    "file": "assets/projections/sinusoidal.svg",
+    "size": 12564
+  },
+  {
+    "id": "natural-earth",
+    "name": "Natural Earth",
+    "family": "Pseudocylindrical",
+    "aspect": 1.92,
+    "width": 800,
+    "height": 417,
+    "file": "assets/projections/natural-earth.svg",
+    "size": 12627
+  },
+  {
+    "id": "winkel-tripel",
+    "name": "Winkel Tripel (Winkel III)",
+    "family": "Pseudocylindrical",
+    "aspect": 1.64,
+    "width": 800,
+    "height": 488,
+    "file": "assets/projections/winkel-tripel.svg",
+    "size": 12443
+  }
+]
