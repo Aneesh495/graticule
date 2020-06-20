@@ -1,0 +1,431 @@
+// Graticule Interactive Showroom Stylesheet
+// Cybernetic cartographic telemetry, glassmorphic HUD controls,
+// and analytical vector graphics presentation.
+
+@use "../scss/graticule" as *;
+
+:root {
+  --bg-deep: #050811;
+  --bg-card: #0c1322;
+  --bg-glass: rgba(12, 19, 34, 0.75);
+  --border-glow: rgba(56, 189, 248, 0.25);
+  --border-dim: #1e293b;
+  --text-bright: #f8fafc;
+  --text-dim: #94a3b8;
+  --text-muted: #64748b;
+  --accent-cyan: #38bdf8;
+  --accent-amber: #f59e0b;
+  --accent-emerald: #10b981;
+  --accent-indigo: #6366f1;
+  --accent-rose: #f43f5e;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-bright);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+// Header & Telemetry Bar
+.graticule-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-glow);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .brand-logo {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .logo-icon {
+        width: 14px;
+        height: 14px;
+        border: 2px solid var(--accent-cyan);
+        border-radius: 50%;
+        position: relative;
+        display: inline-block;
+
+        &::after {
+          content: "";
+          position: absolute;
+          top: 50%;
+          left: -2px;
+          right: -2px;
+          height: 1px;
+          background: var(--accent-cyan);
+        }
+      }
+    }
+
+    .brand-tag {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-dim);
+    }
+  }
+
+  .nav-telemetry {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+
+    .telemetry-item {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+
+      .telemetry-label {
+        color: var(--text-muted);
+        text-transform: uppercase;
+        font-size: 9px;
+        letter-spacing: 0.05em;
+      }
+
+      .telemetry-value {
+        color: var(--accent-emerald);
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+// App Layout Grid
+.graticule-app-container {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  padding: 20px;
+  flex: 1;
+
+  @media (max-width: 1200px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Main Viewport Area
+.viewport-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.hero-viewport-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glow);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  .viewport-header {
+    padding: 16px 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--border-dim);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    .projection-meta {
+      h2 {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-bright);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .family-badge {
+        font-size: 11px;
+        font-family: ui-monospace, monospace;
+        padding: 2px 8px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        background: rgba(56, 189, 248, 0.15);
+        color: var(--accent-cyan);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+      }
+    }
+
+    .layer-toggles {
+      display: flex;
+      gap: 8px;
+
+      .toggle-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-dim);
+        color: var(--text-dim);
+        font-size: 11px;
+        font-family: ui-monospace, monospace;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.1);
+          color: var(--text-bright);
+        }
+
+        &.active {
+          background: rgba(56, 189, 248, 0.2);
+          border-color: var(--accent-cyan);
+          color: var(--accent-cyan);
+        }
+      }
+    }
+  }
+
+  .viewport-canvas-container {
+    position: relative;
+    width: 100%;
+    min-height: 480px;
+    background: #090d16;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+
+    svg {
+      max-width: 100%;
+      height: auto;
+      max-height: 520px;
+      display: block;
+    }
+
+    .reticle-hud {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      background: rgba(9, 13, 22, 0.85);
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--border-dim);
+      color: var(--accent-cyan);
+      display: flex;
+      gap: 16px;
+      pointer-events: none;
+    }
+  }
+}
+
+// Projections Grid Gallery
+.gallery-section {
+  h3 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .projections-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
+
+  .proj-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    &:hover {
+      border-color: var(--accent-cyan);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    &.active {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+      background: rgba(12, 19, 34, 0.95);
+    }
+
+    .card-preview {
+      width: 100%;
+      height: 110px;
+      background: #090d16;
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      img, svg {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+    }
+
+    .card-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+
+      .card-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-bright);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .card-family {
+        font-size: 10px;
+        font-family: ui-monospace, monospace;
+        color: var(--text-muted);
+      }
+    }
+  }
+}
+
+// Sidebar Panels
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  .sidebar-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border-dim);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .panel-heading {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-cyan);
+      border-bottom: 1px solid var(--border-dim);
+      padding-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .parameter-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+
+      .param-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+        font-family: ui-monospace, monospace;
+
+        label {
+          color: var(--text-dim);
+        }
+
+        input[type="range"] {
+          width: 140px;
+          accent-color: var(--accent-cyan);
+        }
+
+        .param-val {
+          color: var(--accent-cyan);
+          width: 40px;
+          text-align: right;
+        }
+      }
+    }
+
+    .analytics-preview-box {
+      background: #090d16;
+      border: 1px solid var(--border-dim);
+      border-radius: 4px;
+      padding: 12px;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      svg {
+        width: 100%;
+        height: auto;
+      }
+    }
+
+    .telemetry-log {
+      font-family: ui-monospace, monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+      background: #090d16;
+      border: 1px solid var(--border-dim);
+      border-radius: 4px;
+      padding: 10px;
+      max-height: 160px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      .log-entry {
+        display: flex;
+        gap: 8px;
+
+        .log-time {
+          color: var(--text-muted);
+        }
+
+        .log-msg {
+          color: var(--accent-emerald);
+        }
+      }
+    }
+  }
+}
