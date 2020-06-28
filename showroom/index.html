@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Graticule | Pure Sass Cartographic & Analytical Vector Engine</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='none' stroke='%2338bdf8' stroke-width='6'/><line x1='5' y1='50' x2='95' y2='50' stroke='%2338bdf8' stroke-width='4'/></svg>" />
+</head>
+<body>
+  <!-- Navigation and Telemetry Header -->
+  <header class="graticule-navbar">
+    <div class="nav-brand">
+      <div class="brand-logo">
+        <span class="logo-icon"></span>
+        GRATICULE
+      </div>
+      <span class="brand-tag">v1.0.0</span>
+      <span class="brand-tag">Pure Sass Engine</span>
+    </div>
+
+    <div class="nav-telemetry">
+      <div class="telemetry-item">
+        <span class="telemetry-label">Projections</span>
+        <span class="telemetry-value">20 Models</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Assertions</span>
+        <span class="telemetry-value">159 Verified</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Precision</span>
+        <span class="telemetry-value">1e-5 Strict</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Runtime JS</span>
+        <span class="telemetry-value">0 KB Math</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Application Container -->
+  <main class="graticule-app-container">
+    <!-- Left / Center: Primary Projection Viewport & Gallery -->
+    <section class="viewport-section">
+      <!-- Hero Viewport Card -->
+      <article class="hero-viewport-card graticule-hud">
+        <header class="viewport-header">
+          <div class="projection-meta">
+            <h2>
+              <span id="active-proj-title">Plate Carree</span>
+              <span id="active-proj-family" class="family-badge">Cylindrical</span>
+              <span id="active-aspect-tag" class="family-badge">Aspect: 2.0:1</span>
+            </h2>
+          </div>
+
+          <div class="layer-toggles">
+            <button id="btn-toggle-wireframe" class="toggle-btn active" title="Toggle Parallels and Meridians Wireframe">Graticule Grid</button>
+            <button id="btn-toggle-land" class="toggle-btn active" title="Toggle Terrestrial Continental Polygons">Landmasses</button>
+            <button id="btn-toggle-routes" class="toggle-btn active" title="Toggle Geodesic Flight Paths">Flight Corridors</button>
+          </div>
+        </header>
+
+        <div class="viewport-canvas-container">
+          <div id="hero-canvas"></div>
+          <div id="reticle-hud" class="reticle-hud">
+            LON: -- | LAT: -- | VIEWPORT: STANDBY
+          </div>
+        </div>
+      </article>
+
+      <!-- Projections Grid Gallery -->
+      <section class="gallery-section">
+        <h3>
+          Supported Cartographic Projections
+          <span style="font-size: 11px; color: var(--accent-cyan); font-family: ui-monospace, monospace;">20 Models Available</span>
+        </h3>
+        <div id="gallery-grid" class="projections-grid"></div>
+      </section>
+    </section>
+
+    <!-- Right Sidebar: Controls, Analytical Graphics & Compiler Telemetry -->
+    <aside class="sidebar-section">
+      <!-- Projection Parameters Panel -->
+      <div class="sidebar-panel">
+        <div class="panel-heading">
+          Projection Parameters
+          <span style="font-size: 10px; color: var(--text-muted);">Compile Specs</span>
+        </div>
+        <div class="parameter-controls">
+          <div class="param-row">
+            <label for="slider-lon0">Central Meridian (&lambda;₀)</label>
+            <input type="range" id="slider-lon0" min="-180" max="180" value="0" />
+            <span id="val-lon0" class="param-val">0°</span>
+          </div>
+          <div class="param-row">
+            <label for="slider-lat0">Standard Parallel (&phi;₀)</label>
+            <input type="range" id="slider-lat0" min="-80" max="80" value="0" />
+            <span id="val-lat0" class="param-val">0°</span>
+          </div>
+          <div class="param-row">
+            <label for="slider-scale">Scale Factor (k)</label>
+            <input type="range" id="slider-scale" min="20" max="250" value="70" />
+            <span id="val-scale" class="param-val">1.0x</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analytical Graphics: Financial Candlesticks -->
+      <div class="sidebar-panel">
+        <div class="panel-heading">
+          Financial Telemetry
+          <span style="font-size: 10px; color: var(--accent-emerald);">OHLC + 20 SMA</span>
+        </div>
+        <div class="analytics-preview-box">
+          <svg viewBox="0 0 320 100" width="100%" height="90">
+            <!-- Bollinger Band Area -->
+            <path d="M 10 30 Q 80 20 160 35 T 310 25 L 310 75 Q 230 85 160 65 T 10 70 Z" fill="rgba(56, 189, 248, 0.08)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1" />
+            <!-- SMA Line -->
+            <path d="M 10 50 Q 80 35 160 50 T 310 45" fill="none" stroke="#f59e0b" stroke-width="1.5" />
+            <!-- Sample Candlesticks -->
+            <g transform="translate(20, 0)">
+              <line x1="10" y1="25" x2="10" y2="75" stroke="#10b981" stroke-width="1" />
+              <rect x="6" y="35" width="8" height="25" fill="#10b981" rx="1" />
+            </g>
+            <g transform="translate(60, 0)">
+              <line x1="10" y1="20" x2="10" y2="70" stroke="#ef4444" stroke-width="1" />
+              <rect x="6" y="30" width="8" height="30" fill="#ef4444" rx="1" />
+            </g>
+            <g transform="translate(100, 0)">
+              <line x1="10" y1="30" x2="10" y2="85" stroke="#10b981" stroke-width="1" />
+              <rect x="6" y="40" width="8" height="35" fill="#10b981" rx="1" />
+            </g>
+            <g transform="translate(140, 0)">
+              <line x1="10" y1="15" x2="10" y2="65" stroke="#10b981" stroke-width="1" />
+              <rect x="6" y="25" width="8" height="25" fill="#10b981" rx="1" />
+            </g>
+            <g transform="translate(180, 0)">
+              <line x1="10" y1="20" x2="10" y2="70" stroke="#ef4444" stroke-width="1" />
+              <rect x="6" y="28" width="8" height="28" fill="#ef4444" rx="1" />
+            </g>
+            <g transform="translate(220, 0)">
+              <line x1="10" y1="10" x2="10" y2="60" stroke="#10b981" stroke-width="1" />
+              <rect x="6" y="18" width="8" height="32" fill="#10b981" rx="1" />
+            </g>
+            <g transform="translate(260, 0)">
+              <line x1="10" y1="15" x2="10" y2="65" stroke="#10b981" stroke-width="1" />
+              <rect x="6" y="22" width="8" height="24" fill="#10b981" rx="1" />
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Analytical Graphics: Mirrored KDE Violin -->
+      <div class="sidebar-panel">
+        <div class="panel-heading">
+          Distribution Analysis
+          <span style="font-size: 10px; color: var(--accent-indigo);">Gaussian KDE</span>
+        </div>
+        <div class="analytics-preview-box">
+          <svg viewBox="0 0 320 80" width="100%" height="70">
+            <!-- Mirrored Violin Outline -->
+            <path d="M 20 40 C 60 15, 100 10, 160 25 C 220 10, 260 25, 300 40 C 260 55, 220 70, 160 55 C 100 70, 60 65, 20 40 Z" fill="rgba(99, 102, 241, 0.2)" stroke="#6366f1" stroke-width="1.5" />
+            <!-- Median Marker -->
+            <line x1="160" y1="25" x2="160" y2="55" stroke="#ffffff" stroke-width="2" />
+            <!-- Quartile Points -->
+            <circle cx="110" cy="40" r="3" fill="#38bdf8" />
+            <circle cx="210" cy="40" r="3" fill="#38bdf8" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Telemetry Event Console Log -->
+      <div class="sidebar-panel">
+        <div class="panel-heading">
+          Compiler Telemetry
+          <span style="font-size: 10px; color: var(--accent-emerald);">Live Feed</span>
+        </div>
+        <div id="telemetry-log" class="telemetry-log">
+          <div class="log-entry">
+            <span class="log-time">[00:00:00.000]</span>
+            <span class="log-msg">Graticule Kernel initialized</span>
+          </div>
+          <div class="log-entry">
+            <span class="log-time">[00:00:00.012]</span>
+            <span class="log-msg">159 compile-time assertions verified</span>
+          </div>
+          <div class="log-entry">
+            <span class="log-time">[00:00:00.045]</span>
+            <span class="log-msg">20 projection models mounted</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Showroom Application Script -->
+  <script src="viewer.js"></script>
+</body>
+</html>
