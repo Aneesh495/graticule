@@ -1,0 +1,35 @@
+// Graticule Example: Global Aviation Flight Telemetry
+// Compiles geodesic great-circle air corridors between international hubs.
+
+@use "../scss/graticule" as g;
+@use "sass:map";
+@use "sass:list";
+
+$flight-cx: 400;
+$flight-cy: 200;
+$flight-scale: 65;
+
+// Route: London Heathrow (LHR) to Singapore Changi (SIN)
+$route-lhr-sin: g.great-circle-path(-0.45, 51.47, 103.99, 1.36, 20);
+$route-projected: ();
+
+@each $wp in $route-lhr-sin {
+  $lon: map.get($wp, "lon");
+  $lat: map.get($wp, "lat");
+  $xy: g.project-point($lon, $lat, "robinson");
+  $px: $flight-cx + (map.get($xy, "x") * $flight-scale);
+  $py: $flight-cy - (map.get($xy, "y") * $flight-scale);
+  $route-projected: list.append($route-projected, (x: $px, y: $py));
+}
+
+$flight-d: g.polyline-to-svg-path($route-projected, false, 1);
+
+.flight-telemetry-overlay {
+  .corridor-lhr-sin {
+    d: path("#{$flight-d}");
+    fill: none;
+    stroke: #f59e0b;
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 2;
+  }
+}

@@ -1,0 +1,42 @@
+// Graticule Example: Publication World Atlas
+// Compiles a standalone responsive world map plate under the Robinson projection.
+
+@use "../scss/graticule" as g;
+@use "sass:map";
+@use "sass:list";
+
+$atlas-cx: 400;
+$atlas-cy: 200;
+$atlas-scale: 65;
+
+// Project Africa continent
+$africa-raw: map.get(g.$WORLD_CONTINENTS, "africa");
+$africa-projected: ();
+
+@each $pt in $africa-raw {
+  $lon: map.get($pt, "lon");
+  $lat: map.get($pt, "lat");
+  $xy: g.project-point($lon, $lat, "robinson");
+  $px: $atlas-cx + (map.get($xy, "x") * $atlas-scale);
+  $py: $atlas-cy - (map.get($xy, "y") * $atlas-scale);
+  $africa-projected: list.append($africa-projected, (x: $px, y: $py));
+}
+
+$africa-d: g.polyline-to-svg-path($africa-projected, true, 1);
+
+.world-atlas-plate {
+  position: relative;
+  width: 800px;
+  height: 400px;
+  background: #090d16;
+  border: 1px solid #24324d;
+  border-radius: 8px;
+  overflow: hidden;
+
+  .atlas-continent-africa {
+    d: path("#{$africa-d}");
+    fill: #1a2744;
+    stroke: #38bdf8;
+    stroke-width: 0.8px;
+  }
+}
